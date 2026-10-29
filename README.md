@@ -16,9 +16,9 @@
 
 <br>
 
-**[🌐 Сайт проекта](https://w1kscc.github.io/Zentrix/)** ·
-**[⬇️ Скачать ZentrixSetup.exe](https://w1kscc.github.io/Zentrix/#download)** ·
-**[Все релизы](https://github.com/w1kscc/Zentrix/releases)**
+<a href="https://w1kscc.github.io/Zentrix/"><img src="docs/buttons/site.svg" height="54" alt="Сайт проекта"></a> &nbsp;
+<a href="https://w1kscc.github.io/Zentrix/#download"><img src="docs/buttons/download.svg" height="54" alt="Скачать установщик"></a> &nbsp;
+<a href="https://github.com/w1kscc/Zentrix/releases"><img src="docs/buttons/releases.svg" height="54" alt="Все релизы"></a>
 
 </div>
 
