@@ -303,4 +303,4 @@ Remove-Item "$env:APPDATA\Zentrix" -Recurse -Force
 5. скриншот (без ссылок на подписки и токенов).
 
 Не прикладывайте `settings.json`, если в нём есть приватные ссылки. Создайте
-issue: <https://github.com/zentrix-app/zentrix/issues>.
+issue: <https://github.com/w1kscc/Zentrix/issues>.

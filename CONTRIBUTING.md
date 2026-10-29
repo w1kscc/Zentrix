@@ -7,7 +7,7 @@ by tests where practical.
 ## Development setup
 
 ```powershell
-git clone https://github.com/zentrix-app/zentrix.git
+git clone https://github.com/w1kscc/Zentrix.git
 cd zentrix
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1

@@ -124,7 +124,7 @@ def check(key: str) -> ComponentStatus:
         license=meta["license"],
         kind=meta["kind"],
     )
-    status.notes = f"Репозиторий: {repo}"
+    status.notes = "" if key == "zentrix" else f"Репозиторий: {repo}"
     try:
         release = net.github_latest(repo)
         status.latest = release.version

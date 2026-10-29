@@ -90,7 +90,7 @@ Hiddify и запутанных `.bat`-файлов: все процессы р�
 ### Из исходников
 
 ```powershell
-git clone https://github.com/zentrix-app/zentrix.git
+git clone https://github.com/w1kscc/Zentrix.git
 cd zentrix
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1

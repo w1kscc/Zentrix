@@ -6,10 +6,10 @@ import time
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QGridLayout, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
+    QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget,
 )
 
-from ... import constants, net, updater
+from ... import net, updater
 from ...logger import get_logger
 from .. import overlays, theme
 from ..widgets import Badge, GlassCard, IconOrb, PrimaryButton, human_bytes, icon
@@ -22,14 +22,15 @@ META = {
     "zapret": ("Zapret", "bolt", "zapret-discord-youtube-1.10.4", "Flowseal/zapret-discord-youtube", "MIT"),
     "happ": ("Happ", "globe", "happ-desktop-4.6.1", "Happ-proxy/happ-desktop", "Proprietary"),
     "hiddify": ("Hiddify", "shield", "hiddify-app-4.1.1", "hiddify/hiddify-app", "CC BY-NC-SA 4.0"),
-    "zentrix": ("Zentrix", "download", "Zentrix", constants.ZENTRIX_REPO, "MIT"),
+    "zentrix": ("Zentrix", "download", "Самообновление приложения", "", "MIT"),
 }
 
 
 class ComponentCard(GlassCard):
     def __init__(self, key: str, palette_obj: theme.Palette, parent=None) -> None:
         name, icon_name, source, repo, license_name = META[key]
-        super().__init__(name, f"{source} · {repo}", icon_name, palette_obj, parent=parent)
+        subtitle = f"{source} · {repo}" if repo else source
+        super().__init__(name, subtitle, icon_name, palette_obj, parent=parent)
         self.key = key
         self.status: updater.ComponentStatus | None = None
         current = updater.installed_version(key)
@@ -134,25 +135,6 @@ class UpdatesPage(Page):
             self.cards[key] = card
             grid.addWidget(card, index // 2, index % 2)
         self.add_layout(grid)
-
-        repo_card = GlassCard("Репозиторий Zentrix", "Используется для самообновления", "link", p)
-        row = QHBoxLayout()
-        row.setSpacing(8)
-        self.repo_edit = QLineEdit(str(self.ctx.settings.get("updates.zentrix_repo", constants.ZENTRIX_REPO)))
-        self.repo_edit.setPlaceholderText("owner/repository")
-        row.addWidget(self.repo_edit, 1)
-        save_repo = QPushButton("Сохранить")
-        save_repo.clicked.connect(self._save_repo)
-        row.addWidget(save_repo)
-        repo_card.add_layout(row)
-        repo_note = QLabel(
-            "Для самообновления опубликуйте релиз с установщиком ZentrixSetup.exe. "
-            "Если репозиторий ещё не создан, проверка вернёт 404 — это нормально для локальной сборки."
-        )
-        repo_note.setObjectName("tiny")
-        repo_note.setWordWrap(True)
-        repo_card.add(repo_note)
-        self.add(repo_card)
 
         info = GlassCard("Источники и лицензии", "", "info", p)
         info_text = QLabel(
@@ -263,7 +245,9 @@ class UpdatesPage(Page):
         if not status:
             return
         if status.error:
-            body = f"<b>Ошибка:</b> {status.error}<br><br>Репозиторий: <code>{updater.component_repo(key)}</code>"
+            body = f"<b>Ошибка:</b> {status.error}"
+            if key != "zentrix":
+                body += f"<br><br>Репозиторий: <code>{updater.component_repo(key)}</code>"
         else:
             notes = (status.notes or "").replace("<", "&lt;")
             body = (
@@ -283,11 +267,3 @@ class UpdatesPage(Page):
             content,
             [("Закрыть", "primary", self.ctx.overlay.close_panel)],
         )
-
-    def _save_repo(self) -> None:
-        repo = self.repo_edit.text().strip()
-        if repo:
-            self.ctx.settings.set("updates.zentrix_repo", repo)
-            updater.COMPONENTS["zentrix"]["repo"] = repo
-            self.ctx.notify("Репозиторий обновлён", "ok")
-            self.check("zentrix")

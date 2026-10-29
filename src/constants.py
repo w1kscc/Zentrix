@@ -8,7 +8,7 @@ from __future__ import annotations
 
 APP_NAME = "Zentrix"
 APP_DISPLAY_NAME = "Zentrix"
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 APP_PUBLISHER = "Zentrix Project"
 APP_DESCRIPTION = "GUI для обхода блокировок: Zapret, Happ и Hiddify в одном окне"
 APP_LICENSE = "MIT"
