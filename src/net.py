@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-USER_AGENT = "Zentrix/1.0 (+https://github.com/zentrix-app/zentrix)"
+USER_AGENT = "Zentrix/1.0 (+https://github.com/w1kscc/Zentrix)"
 ProgressCallback = Callable[[int, int], None]
 
 
