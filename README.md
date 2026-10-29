@@ -14,6 +14,12 @@
 ![Release](https://img.shields.io/github/v/release/w1kscc/Zentrix?label=release&color=7C5CFF)
 ![Build](https://img.shields.io/github/actions/workflow/status/w1kscc/Zentrix/build.yml?label=build)
 
+<br>
+
+**[🌐 Сайт проекта](https://w1kscc.github.io/Zentrix/)** ·
+**[⬇️ Скачать ZentrixSetup.exe](https://w1kscc.github.io/Zentrix/#download)** ·
+**[Все релизы](https://github.com/w1kscc/Zentrix/releases)**
+
 </div>
 
 ---
@@ -22,6 +28,9 @@ Zentrix — это графическая оболочка, которая со�
 обхода блокировок в одном окне. Никаких чёрных консолей, отдельных окон Happ или
 Hiddify и запутанных `.bat`-файлов: все процессы работают скрыто, а управление
 идёт из единого интерфейса.
+
+> **Сайт проекта:** <https://w1kscc.github.io/Zentrix/> — скриншоты,
+> установщик и портативная сборка в один клик.
 
 ## Возможности
 
