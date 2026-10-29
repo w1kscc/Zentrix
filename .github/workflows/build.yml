@@ -1,0 +1,95 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Download Zapret engine
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/fetch_engines.py --zapret
+
+      - name: Ensure Inno Setup 6
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found" }
+
+      - name: Build portable and installer
+        run: python scripts/build.py
+
+      - name: Verify artifacts
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/Zentrix/Zentrix.exe")) { throw "Zentrix.exe missing" }
+          if (-not (Test-Path "dist/installer/ZentrixSetup.exe")) { throw "ZentrixSetup.exe missing" }
+          if (-not (Test-Path "dist/Zentrix/engines/zapret/bin/winws.exe")) {
+            throw "Zapret engine missing from the bundle"
+          }
+          Compress-Archive -Path "dist/Zentrix/*" -DestinationPath "dist/Zentrix-portable.zip" -Force
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Upload portable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zentrix-portable-${{ github.run_number }}
+          path: dist/Zentrix-portable.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zentrix-installer-${{ github.run_number }}
+          path: dist/installer/ZentrixSetup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            dist/installer/ZentrixSetup.exe
+            dist/Zentrix-portable.zip

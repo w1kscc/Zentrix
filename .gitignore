@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+
+# Packaging output
+build/
+dist/
+*.spec
+installer/Output/
+!installer/zentrix.iss
+
+# Engine binaries: downloaded locally, never committed.
+# See README.md and scripts/fetch_engines.py.
+engines/
+
+# Local developer overrides (may contain absolute paths).
+settings.local.json
+
+# Runtime files
+*.log
+*.part
+*.tmp
+
+# OS / editors
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Runtime cache
+cache.db

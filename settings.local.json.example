@@ -1,0 +1,12 @@
+{
+  "_comment": "Copy to settings.local.json (git-ignored). Values here only fill empty/default settings and exist for local development; never commit absolute paths.",
+  "zapret": {
+    "path": "C:/Users/you/Desktop/ei/zapret-discord-youtube-1.10.4"
+  },
+  "happ": {
+    "core": "C:/Users/you/Zentrix/engines/xray/core/xray.exe"
+  },
+  "hiddify": {
+    "core": "C:/Users/you/Zentrix/engines/singbox/core/sing-box.exe"
+  }
+}
