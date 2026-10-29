@@ -12,10 +12,10 @@ APP_VERSION = "1.0.2"
 APP_PUBLISHER = "Zentrix Project"
 APP_DESCRIPTION = "GUI для обхода блокировок: Zapret, Happ и Hiddify в одном окне"
 APP_LICENSE = "MIT"
-APP_HOMEPAGE = "https://github.com/wikscc/Zentrix"
+APP_HOMEPAGE = "https://github.com/w1kscc/Zentrix"
 
 # Repository used for self-updates (owner/name). Can be overridden in settings.
-ZENTRIX_REPO = "wikscc/Zentrix"
+ZENTRIX_REPO = "w1kscc/Zentrix"
 GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
 
 # Upstream projects wrapped by Zentrix.
