@@ -30,10 +30,13 @@
 
     [["[data-dl-installer]", exe], ["[data-dl-portable]", zip]].forEach(([sel, asset]) => {
       $$(sel).forEach((el) => {
-        if (!asset) return;
-        el.href = asset.browser_download_url;
-        const size = el.querySelector(".dl-size");
-        if (size) size.textContent = fmt(asset.size);
+        if (asset) {
+          el.href = asset.browser_download_url;
+          const size = el.querySelector(".dl-size");
+          if (size) size.textContent = fmt(asset.size);
+        } else {
+          el.href = FALLBACK;
+        }
         el.classList.remove("skeleton");
       });
     });
