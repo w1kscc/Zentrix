@@ -8,7 +8,7 @@ from __future__ import annotations
 
 APP_NAME = "Zentrix"
 APP_DISPLAY_NAME = "Zentrix"
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 APP_PUBLISHER = "Zentrix Project"
 APP_DESCRIPTION = "GUI для обхода блокировок: Zapret, Happ и Hiddify в одном окне"
 APP_LICENSE = "MIT"
@@ -97,15 +97,15 @@ SERVICES = [
 
 # Sound events generated at runtime.
 SOUND_EVENTS = [
-    ("startup", "Р—Р°РїСѓСЃРє РїСЂРёР»РѕР¶РµРЅРёСЏ"),
-    ("tray", "РЎРІРѕСЂР°С‡РёРІР°РЅРёРµ РІ С‚СЂРµР№"),
-    ("exit", "Р’С‹С…РѕРґ"),
-    ("enable", "РћР±С…РѕРґ РІРєР»СЋС‡С‘РЅ"),
-    ("disable", "РћР±С…РѕРґ РІС‹РєР»СЋС‡РµРЅ"),
-    ("update", "РћР±РЅРѕРІР»РµРЅРёРµ СѓСЃС‚Р°РЅРѕРІР»РµРЅРѕ"),
-    ("error", "РћС€РёР±РєР°"),
-    ("notify", "РЈРІРµРґРѕРјР»РµРЅРёРµ"),
-    ("click", "РќР°Р¶Р°С‚РёРµ"),
+    ("startup", "Запуск приложения"),
+    ("tray", "Сворачивание в трей"),
+    ("exit", "Выход"),
+    ("enable", "Обход включён"),
+    ("disable", "Обход выключен"),
+    ("update", "Обновление установлено"),
+    ("error", "Ошибка"),
+    ("notify", "Уведомление"),
+    ("click", "Нажатие"),
 ]
 
 # Presets bundled with the app (also written to disk on first run).

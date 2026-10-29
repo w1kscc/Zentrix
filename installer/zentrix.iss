@@ -1,6 +1,6 @@
 ; Zentrix installer (Inno Setup 6).
 ; Build with: python scripts/build.py
-; Compile only: ISCC.exe /DAppVersion=1.0.3 installer\zentrix.iss
+; Compile only: ISCC.exe /DAppVersion=1.0.4 installer\zentrix.iss
 ;
 ; Per-user install: no administrator rights, no UAC at install time.
 ; Engines are copied from dist\Zentrix\engines (never from the source tree).
@@ -9,7 +9,7 @@
   #define AppName "Zentrix"
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.0.3"
+  #define AppVersion "1.0.4"
 #endif
 #ifndef AppPublisher
   #define AppPublisher "Zentrix Project"
