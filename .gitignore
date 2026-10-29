@@ -20,7 +20,7 @@ installer/Output/
 
 # Engine binaries: downloaded locally, never committed.
 # See README.md and scripts/fetch_engines.py.
-engines/
+/engines/
 
 # Local developer overrides (may contain absolute paths).
 settings.local.json
