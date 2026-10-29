@@ -11,6 +11,8 @@
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![PySide6 6.12](https://img.shields.io/badge/Qt-PySide6%206.12-41CD52?logo=qt&logoColor=white)
 ![License MIT](https://img.shields.io/badge/license-MIT-7C5CFF)
+![Release](https://img.shields.io/github/v/release/w1kscc/Zentrix?label=release&color=7C5CFF)
+![Build](https://img.shields.io/github/actions/workflow/status/w1kscc/Zentrix/build.yml?label=build)
 
 </div>
 
