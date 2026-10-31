@@ -1,0 +1,7 @@
+# Локальная сборка
+.gradle/
+build/
+local.properties
+# Нативные библиотеки скачиваются скриптом fetch_tun2socks.py
+app/src/main/jniLibs/
+*.keystore
