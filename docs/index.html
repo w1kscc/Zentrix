@@ -17,6 +17,7 @@
 <link rel="icon" href="logo.png" type="image/png">
 <link rel="apple-touch-icon" href="logo.png">
 <link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="demo.css">
 </head>
 <body>
 
@@ -73,10 +74,219 @@
         </div>
       </div>
 
-      <div class="mock">
-        <div class="win"><i></i><i></i><i></i><span>Zentrix — главная</span></div>
-        <img src="screenshots/home.png" alt="Главное окно Zentrix" loading="lazy">
+      <div class="mock app-demo" id="appDemo">
+        <div class="win"><i></i><i></i><i></i><span>Zentrix — v1.0.5</span>
+          <span class="pill"><i class="dot"></i>Обход активен</span>
+        </div>
+        <div class="app">
+
+          <aside class="app-nav">
+            <button data-page="home" class="on" data-glyph="⌂"><span>Главная</span></button>
+            <button data-page="zapret" data-glyph="⚡"><span>Zapret</span></button>
+            <button data-page="vpn" data-glyph="🌐"><span>VPN</span></button>
+            <button data-page="share" data-glyph="📶"><span>Шеринг</span><em>BETA</em></button>
+            <button data-page="monitor" data-glyph="↯"><span>Мониторинг</span></button>
+            <button data-page="check" data-glyph="◎"><span>Проверки</span></button>
+            <button data-page="updates" data-glyph="↓"><span>Обновления</span></button>
+            <button data-page="settings" data-glyph="◐"><span>Настройки</span></button>
+            <div class="app-foot">АДМИНИСТРАТОР</div>
+          </aside>
+
+          <div class="app-body">
+
+            <!-- Главная -->
+            <section class="page on" data-page="home">
+              <div class="pg-head"><h4>Главная</h4><p>Обход и VPN — под одной кнопкой</p></div>
+              <div class="a-stats">
+                <div class="a-stat"><div class="cap">ZAPRET</div><div class="val ok">Активен</div><div class="det">general (FAKE TLS AUTO)</div></div>
+                <div class="a-stat"><div class="cap">VPN</div><div class="val ok">Подключён</div><div class="det">Xray · сервер ••••</div></div>
+                <div class="a-stat"><div class="cap">СЕТЬ</div><div class="val">4.2 Мбит/с</div><div class="det">↓ 3.9 · ↑ 0.3 Мбит/с</div></div>
+              </div>
+              <div class="a-chart">
+                <svg viewBox="0 0 300 130" preserveAspectRatio="none">
+                  <g stroke="rgba(255,255,255,.07)"><line x1="0" y1="33" x2="300" y2="33"/><line x1="0" y1="66" x2="300" y2="66"/><line x1="0" y1="99" x2="300" y2="99"/></g>
+                  <path d="M0,110 C30,105 45,80 70,78 S110,95 140,70 S190,30 220,38 S270,60 300,50 L300,130 L0,130 Z" fill="rgba(124,92,255,.22)"/>
+                  <path d="M0,110 C30,105 45,80 70,78 S110,95 140,70 S190,30 220,38 S270,60 300,50" fill="none" stroke="#7c5cff" stroke-width="2"/>
+                  <path d="M0,118 C40,116 80,112 120,108 S200,100 240,96 S280,92 300,90 L300,130 L0,130 Z" fill="rgba(34,211,238,.14)"/>
+                  <path d="M0,118 C40,116 80,112 120,108 S200,100 240,96 S280,92 300,90" fill="none" stroke="#22d3ee" stroke-width="2"/>
+                </svg>
+              </div>
+              <div class="a-cards two" style="margin-top:10px">
+                <div class="a-card"><h5>Быстрые действия</h5>
+                  <div class="a-row">
+                    <span class="a-btn primary" data-run>Запустить</span>
+                    <span class="a-btn">Проверить сервисы</span>
+                    <span class="a-btn">Перезапустить</span>
+                  </div>
+                </div>
+                <div class="a-card"><h5>Состояние движков</h5>
+                  <p>Zapret: запущен · PID 42**<br>VPN (Xray): подключён · PID 31**<br>Мульти-прокси: выключен</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- Zapret -->
+            <section class="page" data-page="zapret">
+              <div class="pg-head"><h4>Zapret</h4><p>winws.exe без консолей · 22 стратегии</p></div>
+              <div class="a-card">
+                <h5><span class="chip" data-run-badge>ВЫКЛЮЧЕН</span><span data-run-status style="color:var(--muted);font-weight:500">Движок не запущен</span></h5>
+                <div style="font-size:14px;font-weight:700;margin-bottom:8px">Стратегия: general (FAKE TLS AUTO)</div>
+                <div class="a-row" style="margin-bottom:10px">
+                  <span class="a-btn primary" data-run>Запустить</span>
+                  <span class="a-btn">Перезапустить</span>
+                  <span class="a-btn">Проверить стратегию</span>
+                  <span class="a-btn">Поиск лучшей</span>
+                </div>
+                <input class="a-input" placeholder="Поиск по названию…" value="general" readonly>
+                <div class="a-list" data-select-group>
+                  <div class="a-item sel"><b>general (FAKE TLS AUTO)</b><span class="tag">Fake TLS</span></div>
+                  <div class="a-item"><b>general (FAKE TLS AUTO ALT)</b><span class="tag">Fake TLS</span></div>
+                  <div class="a-item"><b>general (SIMPLE FAKE)</b><span class="tag">Simple</span></div>
+                  <div class="a-item"><b>general (ALT)</b><span class="tag">ALT</span></div>
+                  <div class="a-item"><b>general</b><span class="tag">General</span></div>
+                  <div class="a-item"><b>general (EXP)</b><span class="tag">Experimental</span></div>
+                </div>
+              </div>
+              <div class="a-cards two" style="margin-top:10px">
+                <div class="a-card"><h5>Игровой фильтр <span class="chip warn">2 игры</span></h5>
+                  <p>Режим исключений: Zapret останавливается на время выбранной игры — чистый пинг в матче.</p></div>
+                <div class="a-card"><h5>Обход</h5>
+                  <div class="a-row"><span class="a-btn">Обновить IPSet</span><span class="a-btn">Обновить hosts</span></div></div>
+              </div>
+            </section>
+
+            <!-- VPN -->
+            <section class="page" data-page="vpn">
+              <div class="pg-head"><h4>VPN</h4><p>Один список серверов для Xray и sing-box</p></div>
+              <div class="a-card">
+                <h5>Ваш IP-адрес <span class="chip ok">IP / GEOIP</span></h5>
+                <div class="a-panels">
+                  <div class="a-panel"><div class="cap">БЕЗ VPN</div><div class="ip"><span class="mask">ххх.ххх.ххх.ххх</span></div><div class="geo">•••••• •, •••••••</div></div>
+                  <div class="a-panel"><div class="cap">ЧЕРЕЗ VPN</div><div class="ip"><span class="mask">ххх.ххх.ххх.ххх</span></div><div class="geo">•••••••, •••••••</div></div>
+                </div>
+                <p style="margin-top:8px">Адреса и геолокация скрыты на сайте — данные видны только вам в приложении.</p>
+              </div>
+              <div class="a-card" style="margin-top:10px">
+                <h5>Движок и режим</h5>
+                <div class="a-row">
+                  <span class="a-btn on">Xray · Happ</span>
+                  <span class="a-btn">sing-box · Hiddify</span>
+                  <span class="a-btn">Мульти-прокси · ВЫКЛ</span>
+                  <span class="chip warn" style="align-self:center">BETA</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- Шеринг -->
+            <section class="page" data-page="share">
+              <div class="pg-head"><h4>Прокси-шеринг</h4><p>Подключите устройства домашней сети к интернету через этот ПК</p></div>
+              <div class="a-card">
+                <h5>Локальный шеринг <span class="chip ok">РАБОТАЕТ</span></h5>
+                <div class="a-row" style="align-items:center;margin-bottom:8px">
+                  <span class="a-toggle on"><i></i></span>
+                  <span style="font-size:12.5px">Раздача включена — устройства могут подключаться</span>
+                </div>
+                <p style="margin-bottom:8px">Через что идёт трафик устройств:</p>
+                <div class="a-row" data-route-group>
+                  <span class="a-btn">VPN</span>
+                  <span class="a-btn on">Zapret</span>
+                </div>
+              </div>
+              <div class="a-cards two" style="margin-top:10px">
+                <div class="a-card" style="text-align:center">
+                  <h5 style="justify-content:center">QR-код подключения</h5>
+                  <div class="qr"></div>
+                  <p>socks5://<span class="mask">ххх.ххх.ххх.ххх</span>:10808</p>
+                </div>
+                <div class="a-card"><h5>Как подключить</h5>
+                  <p>Wi-Fi устройства → прокси вручную →<br>IP компьютера: <span class="mask">ххх.ххх.ххх.ххх</span><br>Порт: <b style="color:var(--text)">10808</b></p></div>
+              </div>
+            </section>
+
+            <!-- Мониторинг -->
+            <section class="page" data-page="monitor">
+              <div class="pg-head"><h4>Мониторинг</h4><p>Скорость и соединения в реальном времени</p></div>
+              <div class="a-chart" style="margin-bottom:10px">
+                <svg viewBox="0 0 300 130" preserveAspectRatio="none">
+                  <g stroke="rgba(255,255,255,.07)"><line x1="0" y1="33" x2="300" y2="33"/><line x1="0" y1="66" x2="300" y2="66"/><line x1="0" y1="99" x2="300" y2="99"/></g>
+                  <path d="M0,100 C25,60 45,45 70,52 S110,90 140,60 S190,20 220,34 S270,58 300,42 L300,130 L0,130 Z" fill="rgba(124,92,255,.22)"/>
+                  <path d="M0,100 C25,60 45,45 70,52 S110,90 140,60 S190,20 220,34 S270,58 300,42" fill="none" stroke="#7c5cff" stroke-width="2"/>
+                </svg>
+              </div>
+              <div class="a-card">
+                <h5>Активные соединения</h5>
+                <div class="a-list">
+                  <div class="a-item"><b>••••••.exe</b>&nbsp;· <span class="mask">ххх.ххх.ххх.ххх</span>:443<span class="tag">2.1 МБ/с</span></div>
+                  <div class="a-item"><b>••••••.exe</b>&nbsp;· <span class="mask">ххх.ххх.ххх.ххх</span>:443<span class="tag">0.8 МБ/с</span></div>
+                  <div class="a-item"><b>••••••.exe</b>&nbsp;· <span class="mask">ххх.ххх.ххх.ххх</span>:5228<span class="tag">0.1 МБ/с</span></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Проверки -->
+            <section class="page" data-page="check">
+              <div class="pg-head"><h4>Проверки</h4><p>Что работает, что заблокировано и чем именно</p></div>
+              <div class="a-card">
+                <h5>Диагностика сервисов <span class="chip">3 из 5 доступно</span></h5>
+                <div class="a-list">
+                  <div class="a-item"><b>YouTube</b><span class="tag" style="color:var(--green)">Доступен · 84 мс</span></div>
+                  <div class="a-item"><b>Discord</b><span class="tag" style="color:#ff8098">Заблокирован · SNI</span></div>
+                  <div class="a-item"><b>Telegram</b><span class="tag" style="color:var(--green)">Доступен · 61 мс</span></div>
+                  <div class="a-item"><b>Steam</b><span class="tag" style="color:#f0c876">Нестабильно</span></div>
+                  <div class="a-item"><b>Github</b><span class="tag" style="color:var(--green)">Доступен · 47 мс</span></div>
+                </div>
+                <div class="a-row" style="margin-top:10px"><span class="a-btn primary">Запустить проверку</span></div>
+              </div>
+            </section>
+
+            <!-- Обновления -->
+            <section class="page" data-page="updates">
+              <div class="pg-head"><h4>Обновления</h4><p>Проверка релизов через GitHub API</p></div>
+              <div class="a-card">
+                <h5>Компоненты</h5>
+                <div class="a-list">
+                  <div class="a-item"><b>Zentrix</b> · v1.0.5<span class="tag" style="color:var(--green)">Актуальная</span></div>
+                  <div class="a-item"><b>Zapret</b> · 1.10.4<span class="tag" style="color:var(--green)">Актуальная</span></div>
+                  <div class="a-item"><b>Xray-core</b> · v25.*<span class="tag" style="color:#f0c876">Доступно обновление</span></div>
+                  <div class="a-item"><b>sing-box</b> · v1.*<span class="tag" style="color:var(--green)">Актуальная</span></div>
+                </div>
+                <div class="a-row" style="margin-top:10px"><span class="a-btn primary">Проверить всё</span></div>
+              </div>
+            </section>
+
+            <!-- Настройки -->
+            <section class="page" data-page="settings">
+              <div class="pg-head"><h4>Настройки</h4><p>Темы, акценты, звуки, автозапуск</p></div>
+              <div class="a-cards two">
+                <div class="a-card">
+                  <h5>Внешний вид</h5>
+                  <div class="a-row" style="align-items:center;margin-bottom:8px">
+                    <span class="a-toggle on"><i></i></span><span style="font-size:12.5px">Тёмная тема</span>
+                  </div>
+                  <div class="a-row">
+                    <span class="a-btn" style="padding:9px 16px;background:#7c5cff;border:none"></span>
+                    <span class="a-btn" style="padding:9px 16px;background:#22d3ee;border:none"></span>
+                    <span class="a-btn" style="padding:9px 16px;background:#3ddc97;border:none"></span>
+                    <span class="a-btn" style="padding:9px 16px;background:#ff5c7a;border:none"></span>
+                  </div>
+                </div>
+                <div class="a-card">
+                  <h5>Поведение</h5>
+                  <div class="a-row" style="align-items:center;margin-bottom:6px">
+                    <span class="a-toggle on"><i></i></span><span style="font-size:12.5px">Сворачивать в трей</span>
+                  </div>
+                  <div class="a-row" style="align-items:center">
+                    <span class="a-toggle"><i></i></span><span style="font-size:12.5px">Запуск при старте Windows</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </div>
+        <div class="demo-note">🖱️ <span><b>Интерфейс кликабельный</b> — переключайте вкладки слева, выбирайте стратегии и маршруты. IP-адреса, города и процессы скрыты для сайта.</span></div>
       </div>
+
     </section>
   </div>
 
@@ -327,6 +537,7 @@
   </div>
 </footer>
 
+<script src="demo.js"></script>
 <script src="site.js"></script>
 </body>
 </html>
