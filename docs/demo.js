@@ -44,12 +44,13 @@
     toggle.addEventListener("click", function () { toggle.classList.toggle("on"); });
   });
 
-  // Кнопки запуска: смена состояния (без анимации), в каждом разделе своя
+  // Кнопки запуска: смена состояния (без анимации), у каждой свой исходный текст
   demo.querySelectorAll("[data-run]").forEach(function (runButton) {
+    var idleText = runButton.textContent;
     runButton.addEventListener("click", function () {
       var running = runButton.classList.toggle("danger");
       runButton.classList.toggle("primary", !running);
-      runButton.textContent = running ? "Остановить" : "Запустить";
+      runButton.textContent = running ? "Остановить" : idleText;
       var badge = demo.querySelector("[data-run-badge]");
       if (badge) {
         badge.textContent = running ? "РАБОТАЕТ" : "ВЫКЛЮЧЕН";
@@ -57,7 +58,13 @@
         badge.classList.toggle("muted", !running);
       }
       var status = demo.querySelector("[data-run-status]");
-      if (status) status.textContent = running ? "general (FAKE TLS AUTO) · PID 42**" : "Движок не запущен";
+      if (status) {
+        status.textContent = running
+          ? "Zapret работает · выбранная стратегия применена · PID 42**"
+          : idleText === "Включить обход"
+            ? "Zapret выключен · выбрана стратегия general (FAKE TLS AUTO ALT3).bat"
+            : "Движок не запущен";
+      }
     });
   });
 })();
