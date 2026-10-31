@@ -1,7 +1,0 @@
-# Локальная сборка
-.gradle/
-build/
-local.properties
-# Нативный AAR скачивается скриптом fetch_tun2socks.py
-app/libs/
-*.keystore
