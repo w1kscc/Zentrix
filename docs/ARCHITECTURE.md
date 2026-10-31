@@ -14,7 +14,7 @@
 │  общие настройки · звук · движки · монитор · тема · shutdown │
 ├──────────────────────────────────────────────────────────────┤
 │ Движки и сервисы                                             │
-│  engines/zapret · engines/happ · engines/hiddify · cores     │
+│  engines/zapret · engines/xray · engines/sing-box · cores    │
 │  netmon · blocking_check · updater · cleaner · net           │
 ├──────────────────────────────────────────────────────────────┤
 │ Системный слой                                               │
@@ -90,29 +90,32 @@
 - Извлекает `set`-переменные, раскрывает `%VAR%`, `%~dp0`, `!VAR!`.
 - Собирает argv для `bin\winws.exe` и запускает его напрямую через `QProcess`
   с `CREATE_NO_WINDOW`.
-- Игровой фильтр: если выключен, подставляется порт `12`, чтобы не блокировать
-  игры; если включён — используется `utils/game_filter.enabled` и штатные
-  параметры upstream.
+- Игровой фильтр управляет поддерживаемым upstream фильтром портов через
+  `utils/game_filter.enabled`. Он действует на весь компьютер, а не на список
+  `.exe`: WinDivert не предоставляет PID на уровне перехвата сетевых пакетов.
 - stdout/stderr читаются и показываются в логе страницы. При остановке
   процесс завершается, дочерние процессы не остаются висеть.
 - Обновление сохраняет пользовательские `lists/` и флаг игрового фильтра.
 
-### Happ (`src/engines/happ_engine.py`, `links.py`, `cores.py`, `proxy_engine.py`)
+### VPN (`src/engines/happ_engine.py`, `hiddify_engine.py`, `links.py`, `cores.py`, `proxy_engine.py`)
 
 - Разбирает share-ссылки `vless://`, `vmess://`, `trojan://`, `ss://`.
-- Генерирует JSON-конфиг Xray: inbound SOCKS/HTTP на localhost, outbound —
+- Happ/Xray генерирует JSON-конфиг с SOCKS/HTTP inbound на localhost, outbound —
   выбранный сервер (TLS/Reality/WS/gRPC и т.д.).
 - Скачивает `xray.exe` с официального релиза XTLS/Xray-core по требованию.
 - Запускает ядро скрыто; системный прокси включается через WinINET при
   необходимости.
 - Оригинальный GUI Happ не запускается и не требуется.
 
-### Hiddify (`src/engines/hiddify_engine.py`)
-
-- Та же схема на sing-box: share-ссылка → JSON-конфиг → `sing-box.exe`.
-- Отдельные порты mixed/API, чтобы Happ и Hiddify могли работать
-  одновременно.
-- GUI Hiddify не запускается.
+- Hiddify/sing-box использует тот же общий `profiles/vpn.txt` и отдельный порт
+  для mixed inbound и Clash API.
+- UI содержит один раздел VPN с переключателем движка. Xray и sing-box не могут
+  одновременно работать как активные подключения.
+- BETA балансировщик принимает TCP-подключения и назначает каждому новый узел
+  sing-box по очереди. Он не делит один TCP-поток между серверами и не
+  балансирует SOCKS UDP-трафик.
+- BETA прокси‑шеринг привязывает входящий proxy к выбранному частному IPv4 адресу
+  активного интерфейса. Он не слушает все сетевые интерфейсы компьютера.
 
 ## 6. Мониторинг и проверки
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QFileDialog, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QPlainTextEdit, QProgressBar, QPushButton, QSpinBox, QVBoxLayout,
@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
 
 from ...engines.base import EngineError
 from ...logger import get_logger
-from .. import overlays, theme
+from ... import net
+from .. import flags, overlays, theme
 from ..widgets import (
     Badge, Divider, GlassCard, IconButton, IconOrb, LogView, PrimaryButton, StatTile,
     ToggleRow, human_bytes, human_speed, icon,
@@ -59,8 +60,6 @@ class ProxyPage(Page):
         status_row.addWidget(self.status_badge, 0, Qt.AlignLeft)
         self.latency_badge = Badge("—", "muted")
         status_row.addWidget(self.latency_badge, 0, Qt.AlignLeft)
-        self.ip_badge = Badge("IP —", "muted")
-        status_row.addWidget(self.ip_badge, 0, Qt.AlignLeft)
         status_row.addStretch(1)
         column.addLayout(status_row)
         self.node_label = QLabel("Сервер не выбран")
@@ -92,7 +91,7 @@ class ProxyPage(Page):
         self.sysproxy_card = GlassCard(
             "Трафик Windows идёт напрямую",
             "Системный прокси выключен: браузер и другие программы обходят туннель, "
-            "поэтому 2ip.io показывает прежний IP. Включите системный прокси.",
+            "поэтому обычные приложения Windows могут идти напрямую. Включите системный прокси.",
             "alert", p,
         )
         self.sysproxy_card.add_header_widget(Badge("ВНИМАНИЕ", "warn"))
@@ -140,6 +139,7 @@ class ProxyPage(Page):
                             "globe", p)
         self.nodes = QListWidget()
         self.nodes.setMinimumHeight(170)
+        self.nodes.setIconSize(QSize(26, 18))
         self.nodes.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.nodes.currentRowChanged.connect(self._node_selected)
         servers.add(self.nodes)
@@ -222,10 +222,6 @@ class ProxyPage(Page):
         latency_button.setIcon(icon("activity", p.accent, 18))
         latency_button.clicked.connect(self._measure_latency)
         params.add(latency_button)
-        self.check_ip_button = QPushButton("Проверить внешний IP")
-        self.check_ip_button.setIcon(icon("globe", p.accent, 18))
-        self.check_ip_button.clicked.connect(self._check_ip)
-        params.add(self.check_ip_button)
         params.addStretch(1)
         body.addWidget(params, 2)
         self.add_layout(body)
@@ -272,8 +268,13 @@ class ProxyPage(Page):
         self.nodes.blockSignals(True)
         self.nodes.clear()
         for node in nodes:
-            item = QListWidgetItem(f"{node.label}   ·   {node.summary()}")
+            label = flags.strip_flag_emoji(node.label)
+            item = QListWidgetItem(f"{label}   ·   {node.summary()}")
             item.setData(Qt.UserRole, node.summary())
+            node_icon = flags.flag_icon(flags.detect_country(node.label), 16)
+            if node_icon is None:
+                node_icon = icon("globe", self.ctx.palette.muted, 16)
+            item.setIcon(node_icon)
             self.nodes.addItem(item)
         index = self.engine.selected_index() if select is None else select
         if nodes:
@@ -294,7 +295,7 @@ class ProxyPage(Page):
             return
         self.engine.select_node(row)
         node = nodes[row]
-        self.node_label.setText(f"{node.label} · {node.summary()}")
+        self.node_label.setText(f"{flags.strip_flag_emoji(node.label)} · {node.summary()}")
         self.detail_label.setText(
             f"{node.protocol.upper()} · {node.transport_label}"
             + (f" · SNI {node.sni}" if node.sni else "")
@@ -308,13 +309,13 @@ class ProxyPage(Page):
         if self.engine.core_kind == "singbox":
             if node.network in {"xhttp", "splithttp"}:
                 hints.append(
-                    "XHTTP не поддерживается Hiddify (sing-box). Выберите Happ "
+                    "XHTTP не поддерживается sing-box. Выберите Xray "
                     "или узел WS/TCP."
                 )
             elif node.security == "reality":
                 hints.append(
                     "Reality может не работать в sing-box. Если подключение не "
-                    "устанавливается, выберите узел Резерв (WS/TLS) или вкладку Happ."
+                    "устанавливается, выберите узел Резерв (WS/TLS) или движок Xray."
                 )
         self.node_hint.setText(" ".join(hints))
         self.node_hint.setVisible(bool(hints))
@@ -418,9 +419,13 @@ class ProxyPage(Page):
         primary, secondary = self.engine.ports()
         self.port_a.setValue(primary)
         self.port_b.setValue(secondary)
+        host = "127.0.0.1"
+        if self.ctx.settings.get("vpn.share", False):
+            addresses = net.lan_ipv4_addresses()
+            host = addresses[0] if addresses else "IP LAN не найден"
         self.port_hint.setText(
-            f"Локальный прокси: 127.0.0.1:{primary}" if self.engine.core_kind == "singbox"
-            else f"SOCKS 127.0.0.1:{primary} · HTTP 127.0.0.1:{secondary}"
+            f"Локальный прокси: {host}:{primary}" if self.engine.core_kind == "singbox"
+            else f"SOCKS {host}:{primary} · HTTP {host}:{secondary}"
         )
 
     def _save_ports(self) -> None:
@@ -460,7 +465,6 @@ class ProxyPage(Page):
         self.connect_button.setEnabled(True)
         self._refresh()
         if connected and self.engine.status == "running":
-            self.ip_badge.update_badge("IP —", "muted")
             if self.ctx.settings.get(f"{self.engine.ns}.sysproxy", False):
                 self.ctx.notify(f"{self.title}: подключено", "ok", "enable")
             else:
@@ -485,9 +489,7 @@ class ProxyPage(Page):
         self.ctx.settings.set(f"{self.engine.ns}.sysproxy", bool(value))
         self.sysproxy_row.set_checked(bool(value))
         if self.engine.status == "running":
-            from ... import winapi
-
-            winapi.set_system_proxy(bool(value), self.engine.public_proxy())
+            self.engine.set_system_proxy(bool(value))
             self.ctx.notify("Системный прокси " + ("включён" if value else "выключен"),
                             "ok" if value else "info")
         else:
@@ -497,44 +499,6 @@ class ProxyPage(Page):
                 "info",
             )
         self._refresh()
-
-    def _check_ip(self) -> None:
-        if self.engine.status != "running":
-            self.ctx.notify("Сначала подключитесь", "warn")
-            return
-        self.check_ip_button.setEnabled(False)
-        self.ip_badge.update_badge("IP …", "info")
-        run_task(
-            self, self.engine.public_ip,
-            on_done=self._ip_checked,
-            on_error=self._ip_failed,
-        )
-
-    def _ip_checked(self, value) -> None:
-        self.check_ip_button.setEnabled(True)
-        if not value:
-            self.ip_badge.update_badge("IP: нет ответа", "err")
-            self.ctx.notify(
-                "Не удалось получить внешний IP через туннель. Проверьте узел и журнал.",
-                "err", "error",
-            )
-            return
-        self.ip_badge.update_badge(f"IP {value}", "ok")
-        if self.ctx.settings.get(f"{self.engine.ns}.sysproxy", False):
-            self.ctx.notify(
-                f"Внешний IP через туннель: {value}. Системный прокси включён.", "ok"
-            )
-        else:
-            self.ctx.notify(
-                f"Туннель работает: {value}. Но системный прокси выключен — "
-                "2ip.io покажет ваш обычный IP.",
-                "warn",
-            )
-
-    def _ip_failed(self, message: str) -> None:
-        self.check_ip_button.setEnabled(True)
-        self.ip_badge.update_badge("IP: ошибка", "err")
-        self.ctx.notify(f"Внешний IP: {message}", "err", "error")
 
     def _measure_latency(self) -> None:
         if self.engine.status != "running":
@@ -587,8 +551,6 @@ class ProxyPage(Page):
         sysproxy_on = bool(self.ctx.settings.get(f"{self.engine.ns}.sysproxy", False))
         self.sysproxy_row.set_checked(sysproxy_on)
         self.sysproxy_card.setVisible(not sysproxy_on)
-        if self.engine.status != "running":
-            self.ip_badge.update_badge("IP —", "muted")
         self.auto_row.set_checked(bool(self.ctx.settings.get(f"{self.engine.ns}.autostart", False)))
 
     def _copy_log(self) -> None:

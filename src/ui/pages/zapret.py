@@ -9,14 +9,16 @@ from pathlib import Path
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QPlainTextEdit, QPushButton, QStyle, QStyledItemDelegate, QVBoxLayout, QWidget,
 )
 
 from ... import winapi
 from ...blocking_check import STATUS_LABELS
-from ...engines.zapret import Strategy, discover_strategies
+from ...engines.game_scan import GameEntry, scan_games
+from ...engines.zapret import Strategy, discover_strategies, game_filter_settings, validate_port_ranges
 from ...strategy_check import SearchReport, StrategyReport, search_best_strategy, verify_strategy
+from ... import zapret_lists
 from .. import overlays, theme
 from ..widgets import (
     Badge, Divider, GlassCard, IconButton, IconOrb, LogView, PrimaryButton, ToggleRow,
@@ -45,11 +47,11 @@ class StrategyDelegate(QStyledItemDelegate):
         selected = bool(option.state & QStyle.State_Selected)
         hover = bool(option.state & QStyle.State_MouseOver)
         if selected:
-            painter.setBrush(QColor(theme.rgba(p.accent, 0.18)))
-            painter.setPen(QPen(QColor(theme.rgba(p.accent, 0.45)), 1))
+            painter.setBrush(theme.qcolor(p.accent, 0.18))
+            painter.setPen(QPen(theme.qcolor(p.accent, 0.45), 1))
             painter.drawRoundedRect(rect, 9, 9)
         elif hover:
-            painter.setBrush(QColor(theme.rgba(p.surface, 0.05 if p.is_dark else 0.5)))
+            painter.setBrush(theme.qcolor("#FFFFFF", 0.11 if p.is_dark else 0.42))
             painter.setPen(Qt.NoPen)
             painter.drawRoundedRect(rect, 9, 9)
 
@@ -68,7 +70,7 @@ class StrategyDelegate(QStyledItemDelegate):
         chip_font.setPointSize(max(7, p.font_size - 2))
         painter.setFont(chip_font)
         chip_rect = QRectF(rect.right() - 84, rect.center().y() - 10, 74, 20)
-        painter.setBrush(QColor(theme.rgba(p.accent, 0.12 if selected else 0.07)))
+        painter.setBrush(theme.qcolor(p.accent, 0.12 if selected else 0.07))
         painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(chip_rect, 8, 8)
         painter.setPen(QColor(p.accent if selected else p.muted))
@@ -93,8 +95,11 @@ class ZapretPage(Page):
         self._search_cancel = threading.Event()
         self._search_index = 0
         self._search_total = 0
+        self._games: list[GameEntry] = []
+        self._scanned = False
         self._build()
         self._connect()
+        self._load_saved_games()
 
     # ------------------------------------------------------------------ build
     def _build(self) -> None:
@@ -178,6 +183,18 @@ class ZapretPage(Page):
         )
         self.best_button.clicked.connect(self._search_best)
         strategies_card.add_header_widget(self.best_button)
+        self.exhaustive_button = QPushButton("Полный перебор")
+        self.exhaustive_button.setProperty("variant", "chip")
+        self.exhaustive_button.setCheckable(True)
+        self.exhaustive_button.setCursor(Qt.PointingHandCursor)
+        self.exhaustive_button.setFixedHeight(32)
+        self.exhaustive_button.setToolTip(
+            "Включено: проверяются все стратегии и строится полный рейтинг.\n"
+            "Выключено: поиск останавливается на первой полностью рабочей стратегии (быстро)."
+        )
+        self.exhaustive_button.setChecked(
+            bool(self.ctx.settings.get("zapret.search_exhaustive", False)))
+        strategies_card.add_header_widget(self.exhaustive_button)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Поиск по названию…")
         self.search.textChanged.connect(self._filter)
@@ -187,6 +204,7 @@ class ZapretPage(Page):
         self.best_label.setWordWrap(True)
         strategies_card.add(self.best_label)
         self.list = QListWidget()
+        self.list.setObjectName("strategyList")
         self.list.setMouseTracking(True)
         self.list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.list.setMinimumHeight(370)
@@ -224,6 +242,31 @@ class ZapretPage(Page):
         config_card.add(self.os_autostart_row)
         side.addWidget(config_card)
 
+        bypass_card = GlassCard("Обход", "Обновление списков из репозитория zapret-discord-youtube",
+                                "download", p)
+        bypass_row = QHBoxLayout()
+        bypass_row.setSpacing(8)
+        self.ipset_button = QPushButton("Обновить IPSet")
+        self.ipset_button.setToolTip(
+            "Скачать свежий список подсетей (ipset-all.txt) из репозитория Flowseal.\n"
+            "Предыдущая версия сохраняется как ipset-all.txt.backup"
+        )
+        self.ipset_button.clicked.connect(self._update_ipset)
+        bypass_row.addWidget(self.ipset_button, 1)
+        self.hosts_button = QPushButton("Обновить hosts")
+        self.hosts_button.setToolTip(
+            "Синхронизировать файл hosts Windows с upstream-списком.\n"
+            "Изменения вносятся отдельным блоком, оригинал сохраняется в hosts.zentrix.bak"
+        )
+        self.hosts_button.clicked.connect(self._update_hosts)
+        bypass_row.addWidget(self.hosts_button, 1)
+        bypass_card.add_layout(bypass_row)
+        self.bypass_label = QLabel("")
+        self.bypass_label.setObjectName("tiny")
+        self.bypass_label.setWordWrap(True)
+        bypass_card.add(self.bypass_label)
+        side.addWidget(bypass_card)
+
         system_card = GlassCard("Состояние", "", "cpu", p)
         self.pid_label = QLabel("PID: —")
         self.pid_label.setObjectName("tiny")
@@ -239,6 +282,86 @@ class ZapretPage(Page):
         side.addStretch(1)
         body.addLayout(side, 2)
         self.add_layout(body)
+
+        game_card = GlassCard("Игровой фильтр",
+                              "Как Zapret работает с трафиком игр — без джиттера и скачков пинга",
+                              "filter", p)
+        mode_row = QHBoxLayout()
+        mode_caption = QLabel("Режим")
+        mode_row.addWidget(mode_caption)
+        self.gamefilter_mode = QComboBox()
+        for label, mode in (("Выключен", "disabled"),
+                            ("Изоляция: Zapret только для выбранных игр", "isolate"),
+                            ("Исключения: Zapret не применять к выбранным играм", "exclude")):
+            self.gamefilter_mode.addItem(label, mode)
+        saved_mode = str(self.ctx.settings.get("zapret.gamefilter.mode", "disabled") or "disabled")
+        self.gamefilter_mode.setCurrentIndex(max(0, self.gamefilter_mode.findData(saved_mode)))
+        self.gamefilter_mode.currentIndexChanged.connect(self._save_gamefilter_mode)
+        mode_row.addWidget(self.gamefilter_mode, 1)
+        game_card.add_layout(mode_row)
+
+        games_controls = QHBoxLayout()
+        games_controls.setSpacing(8)
+        self.scan_button = QPushButton("Найти игры")
+        self.scan_button.setProperty("variant", "chip")
+        self.scan_button.setFixedHeight(32)
+        self.scan_button.setCursor(Qt.PointingHandCursor)
+        self.scan_button.setToolTip(
+            "Сканировать библиотеки Steam, Epic Games, EA, GOG и реестр Windows"
+        )
+        self.scan_button.clicked.connect(self._scan_games)
+        games_controls.addWidget(self.scan_button)
+        self.add_game_button = QPushButton("Добавить вручную…")
+        self.add_game_button.setProperty("variant", "chip")
+        self.add_game_button.setFixedHeight(32)
+        self.add_game_button.setCursor(Qt.PointingHandCursor)
+        self.add_game_button.setToolTip("Указать путь к .exe игры в кастомной директории")
+        self.add_game_button.clicked.connect(self._add_game_manual)
+        games_controls.addWidget(self.add_game_button)
+        games_controls.addStretch(1)
+        game_card.add_layout(games_controls)
+
+        self.games_search = QLineEdit()
+        self.games_search.setPlaceholderText("Поиск по названию или имени процесса…")
+        self.games_search.textChanged.connect(self._filter_games)
+        game_card.add(self.games_search)
+
+        self.games_list = QListWidget()
+        self.games_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
+        self.games_list.setMinimumHeight(190)
+        self.games_list.itemChanged.connect(self._on_game_item_changed)
+        game_card.add(self.games_list, 1)
+
+        self.gamefilter_status = QLabel("")
+        self.gamefilter_status.setObjectName("tiny")
+        self.gamefilter_status.setWordWrap(True)
+        self.gamefilter_status.hide()
+        game_card.add(self.gamefilter_status)
+
+        game_card.add(Divider())
+        ports_caption = QLabel("Фильтр портов upstream (глобальный, применяется к всему трафику)")
+        ports_caption.setObjectName("tiny")
+        game_card.add(ports_caption)
+        self.game_mode = QComboBox()
+        for label, mode in (("Порты: выключено", "disabled"), ("Порты: TCP + UDP", "all"),
+                            ("Порты: только TCP", "tcp"), ("Порты: только UDP", "udp")):
+            self.game_mode.addItem(label, mode)
+        ranges = game_filter_settings(self.engine.folder())
+        self.game_mode.setCurrentIndex(max(0, self.game_mode.findData(ranges["mode"])))
+        game_card.add(self.game_mode)
+        range_row = QHBoxLayout()
+        self.game_tcp = QLineEdit(ranges["tcp"])
+        self.game_tcp.setPlaceholderText("TCP: 1024-65535")
+        self.game_udp = QLineEdit(ranges["udp"])
+        self.game_udp.setPlaceholderText("UDP: 1024-65535")
+        range_row.addWidget(self.game_tcp)
+        range_row.addWidget(self.game_udp)
+        game_card.add_layout(range_row)
+        save_game = QPushButton("Сохранить фильтр портов")
+        save_game.setProperty("variant", "chip")
+        save_game.clicked.connect(self._save_game_filter)
+        game_card.add(save_game)
+        self.add(game_card)
 
         log_card = GlassCard("Журнал winws", "Вывод процесса в реальном времени", "activity", p)
         log_tools = QHBoxLayout()
@@ -260,6 +383,7 @@ class ZapretPage(Page):
         self.engine.status_changed.connect(self._on_status)
         self.engine.log_line.connect(self.log.append_line)
         self.engine.error.connect(lambda title, msg: self.ctx.notify(f"{title}: {msg}", "err", "error"))
+        self.engine.gamefilter_state.connect(self._on_gamefilter_state)
 
     # ------------------------------------------------------------------- show
     def on_show(self) -> None:
@@ -271,6 +395,9 @@ class ZapretPage(Page):
         self._refresh()
         self.admin_card.setVisible(not self.ctx.admin())
         self.orb.set_icon("bolt" if self.engine.status == "running" else "bolt")
+        # Auto-scan game libraries once per session, per the game filter spec.
+        if not self._scanned:
+            self._scan_games()
 
     def on_theme(self) -> None:
         p = self.ctx.palette
@@ -321,14 +448,232 @@ class ZapretPage(Page):
         strategy = self.engine.strategy()
         if strategy:
             self.strategy_label.setText(f"Стратегия: {strategy.name}")
+            if self.engine.status == "running":
+                active = self.engine.strategy(self.engine.active_strategy)
+                state = (f"запущена: {active.filename}" if active
+                         else "процесс работает; выбранная стратегия применится после перезапуска")
+            else:
+                state = "готова к запуску"
             self.detail_label.setText(
                 f"{strategy.filename} · {self.engine.folder()} · "
-                f"{'запущена' if self.engine.status == 'running' else 'готова к запуску'}"
+                f"{state}"
             )
         else:
             self.strategy_label.setText("Стратегия не выбрана")
             self.detail_label.setText(f"Папка: {self.engine.folder()}")
         self.folder_label.setText(f"Движок: {self.engine.folder()}")
+
+    def _save_game_filter(self) -> None:
+        tcp = validate_port_ranges(self.game_tcp.text())
+        udp = validate_port_ranges(self.game_udp.text())
+        if tcp != self.game_tcp.text().replace(" ", ""):
+            self.ctx.notify("Некорректный диапазон TCP‑портов", "warn")
+            return
+        if udp != self.game_udp.text().replace(" ", ""):
+            self.ctx.notify("Некорректный диапазон UDP‑портов", "warn")
+            return
+        mode = self.game_mode.currentData()
+        flag = self.engine.folder() / "utils" / "game_filter.enabled"
+        try:
+            flag.parent.mkdir(parents=True, exist_ok=True)
+            flag.write_text(f"mode={mode}\ntcp={tcp}\nudp={udp}\n", encoding="utf-8")
+        except OSError as exc:
+            self.ctx.notify(f"Не удалось сохранить игровой фильтр: {exc}", "err", "error")
+            return
+        if self.engine.status == "running":
+            self.ctx.notify("Игровой фильтр сохранён. Перезапустите Zapret для применения.", "info")
+        else:
+            self.ctx.notify("Игровой фильтр сохранён", "ok")
+
+    # ------------------------------------------------------------ game filter
+    def _checked_game_paths(self) -> list[str]:
+        return [self.games_list.item(row).data(Qt.UserRole)
+                for row in range(self.games_list.count())
+                if self.games_list.item(row).checkState() == Qt.Checked]
+
+    def _load_saved_games(self) -> None:
+        saved = [str(item) for item in (self.ctx.settings.get("zapret.gamefilter.games") or [])]
+        known = {entry.exe.lower() for entry in self._games}
+        for path in saved:
+            if path.lower() not in known:
+                self._games.append(GameEntry(Path(path).stem, path, "manual"))
+        self._populate_games()
+
+    def _populate_games(self) -> None:
+        checked = {item.lower() for item in (self.ctx.settings.get("zapret.gamefilter.games") or [])}
+        self.games_list.blockSignals(True)
+        self.games_list.clear()
+        for game in self._games:
+            item = QListWidgetItem(f"{game.name}   ·   {Path(game.exe).name}")
+            item.setData(Qt.UserRole, game.exe)
+            item.setToolTip(game.exe)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if game.exe.lower() in checked else Qt.Unchecked)
+            self.games_list.addItem(item)
+        self.games_list.blockSignals(False)
+        self._filter_games(self.games_search.text())
+
+    def _merge_games(self, entries: list[GameEntry]) -> int:
+        known = {entry.exe.lower() for entry in self._games}
+        added = 0
+        for entry in entries:
+            if entry.exe.lower() not in known:
+                self._games.append(entry)
+                known.add(entry.exe.lower())
+                added += 1
+        return added
+
+    def _on_game_item_changed(self, _item) -> None:
+        self.ctx.settings.set("zapret.gamefilter.games", self._checked_game_paths())
+
+    def _filter_games(self, text: str) -> None:
+        needle = text.strip().lower()
+        for row in range(self.games_list.count()):
+            item = self.games_list.item(row)
+            item.setHidden(bool(needle) and needle not in item.text().lower())
+
+    def _scan_games(self) -> None:
+        if getattr(self, "_scanning", False):
+            return
+        self._scanning = True
+        self.scan_button.setEnabled(False)
+        self.scan_button.setText("Сканирую…")
+        run_task(self, scan_games, on_done=self._games_scanned,
+                 on_error=self._games_scan_failed)
+
+    def _games_scanned(self, entries) -> None:
+        self._scanning = False
+        self._scanned = True
+        self.scan_button.setEnabled(True)
+        self.scan_button.setText("Найти игры")
+        added = self._merge_games(list(entries))
+        self._populate_games()
+        if added:
+            self.ctx.notify(f"Найдено игр: {len(entries)} (новых: {added})", "ok")
+        elif entries:
+            self.ctx.notify(f"Найдено игр: {len(entries)} — список уже актуален", "info")
+        else:
+            self.ctx.notify("Игры не найдены — добавьте .exe вручную", "warn")
+
+    def _games_scan_failed(self, message: str) -> None:
+        self._scanning = False
+        self._scanned = True
+        self.scan_button.setEnabled(True)
+        self.scan_button.setText("Найти игры")
+        self.ctx.notify(f"Сканирование игр: {message}", "err", "error")
+
+    def _add_game_manual(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Выберите .exe игры", "",
+                                              "Приложения (*.exe);;Все файлы (*.*)")
+        if not path:
+            return
+        self._merge_games([GameEntry(Path(path).stem, path, "manual")])
+        self._populate_games()
+        # Check the newly added game and persist it.
+        for row in range(self.games_list.count()):
+            item = self.games_list.item(row)
+            if item.data(Qt.UserRole) == path:
+                item.setCheckState(Qt.Checked)
+                break
+        self.ctx.settings.set("zapret.gamefilter.games", self._checked_game_paths())
+        self.ctx.notify("Игра добавлена в игровой фильтр", "ok")
+
+    def _save_gamefilter_mode(self, _index: int) -> None:
+        mode = self.gamefilter_mode.currentData()
+        self.ctx.settings.set("zapret.gamefilter.mode", mode)
+        if mode == "disabled":
+            self.ctx.notify("Игровой фильтр выключен", "info")
+            return
+        if not self._checked_game_paths():
+            self.ctx.notify("Отметьте игры в списке — иначе фильтр не сработает", "warn")
+        elif mode == "isolate":
+            self.ctx.notify(
+                "Режим изоляции: Zapret будет запускаться только пока идёт выбранная игра",
+                "info")
+        else:
+            self.ctx.notify(
+                "Режим исключений: Zapret будет останавливаться на время выбранной игры",
+                "info")
+
+    def _on_gamefilter_state(self, text: str) -> None:
+        self.gamefilter_status.setText(text)
+        self.gamefilter_status.setVisible(bool(text))
+
+    # --------------------------------------------------------- bypass updates
+    def _update_ipset(self) -> None:
+        if getattr(self, "_updating_lists", False):
+            return
+        self._updating_lists = True
+        self.ipset_button.setEnabled(False)
+        self.bypass_label.setText("Скачиваю ipset…")
+        run_task(self, zapret_lists.update_ipset, self.engine.folder(),
+                 on_done=self._ipset_updated, on_error=self._lists_failed)
+
+    def _ipset_updated(self, count: int) -> None:
+        self._updating_lists = False
+        self.ipset_button.setEnabled(True)
+        self.bypass_label.setText(f"ipset обновлён: {count} подсетей")
+        if self.engine.status == "running":
+            self.ctx.notify("IPSet обновлён — перезапустите Zapret для применения", "info")
+        else:
+            self.ctx.notify(f"IPSet обновлён ({count} подсетей)", "ok")
+
+    def _update_hosts(self) -> None:
+        if getattr(self, "_updating_lists", False):
+            return
+        self._updating_lists = True
+        self.hosts_button.setEnabled(False)
+        self.bypass_label.setText("Проверяю hosts…")
+        run_task(self, zapret_lists.fetch_hosts,
+                 on_done=self._hosts_fetched, on_error=self._lists_failed)
+
+    def _hosts_fetched(self, content: str) -> None:
+        self._updating_lists = False
+        self.hosts_button.setEnabled(True)
+        if zapret_lists.hosts_is_up_to_date(content):
+            self.bypass_label.setText("hosts уже актуален")
+            self.ctx.notify("Файл hosts уже соответствует upstream-списку", "ok")
+            return
+        if self.ctx.admin():
+            if zapret_lists.write_hosts_block(content):
+                self.bypass_label.setText("hosts обновлён")
+                self.ctx.notify(
+                    "Файл hosts обновлён. Изменения могут примениться после "
+                    "очистки кэша DNS (ipconfig /flushdns) или перезапуска сети.",
+                    "ok")
+            else:
+                self.bypass_label.setText("Не удалось записать hosts")
+                self.ctx.notify("Не удалось записать файл hosts", "err", "error")
+            return
+        # No admin rights: show the content and instructions, like upstream does.
+        self.bypass_label.setText("hosts отличается — нужны права администратора")
+        from PySide6.QtWidgets import QApplication, QPlainTextEdit
+
+        editor = QPlainTextEdit(
+            zapret_lists.HOSTS_BEGIN + "\n" + content + "\n" + zapret_lists.HOSTS_END)
+        editor.setReadOnly(True)
+        editor.setMinimumHeight(260)
+        editor.setObjectName("logView")
+        overlays.panel_with_actions(
+            self.ctx.overlay,
+            "Обновление hosts",
+            editor,
+            [
+                ("Скопировать", "ghost", lambda: (
+                    QApplication.clipboard().setText(
+                        zapret_lists.HOSTS_BEGIN + "\n" + content + "\n" + zapret_lists.HOSTS_END),
+                    self.ctx.notify("Скопировано — вставьте в C:\\Windows\\System32\\drivers\\etc\\hosts",
+                                    "info"))),
+                ("Перезапустить от администратора", "primary", self.ctx.relaunch_admin),
+            ],
+        )
+
+    def _lists_failed(self, message: str) -> None:
+        self._updating_lists = False
+        self.ipset_button.setEnabled(True)
+        self.hosts_button.setEnabled(True)
+        self.bypass_label.setText(f"Ошибка обновления: {message}")
+        self.ctx.notify(f"Обновление списков: {message}", "err", "error")
 
     # ----------------------------------------------------------------- actions
     def _toggle(self) -> None:
@@ -515,17 +860,25 @@ class ZapretPage(Page):
             self._error("winws.exe не найден. Проверьте папку движка.")
             return
         total = len(self._strategies)
-        if self.engine.status == "running":
-            action = ("Сейчас Zapret запущен: на время поиска он будет остановлен, "
-                      "а после поиска запущен с лучшей стратегией.")
+        exhaustive = self.exhaustive_button.isChecked()
+        self.ctx.settings.set("zapret.search_exhaustive", exhaustive)
+        if exhaustive:
+            action = ("Будут проверены все стратегии и построен полный рейтинг. "
+                      "Это занимает несколько минут.")
         else:
-            action = ("После поиска лучшая стратегия будет выбрана; Zapret останется "
-                      "остановленным до нажатия «Запустить».")
+            action = ("Поиск остановится на первой стратегии, которая открывает все "
+                      "проверяемые сервисы — это самый быстрый режим.")
+        if self.engine.status == "running":
+            action += (" Сейчас Zapret запущен: на время поиска он будет остановлен, "
+                       "а после поиска запущен с лучшей стратегией.")
+        else:
+            action += (" После поиска лучшая стратегия будет выбрана; Zapret останется "
+                       "остановленным до нажатия «Запустить».")
         overlays.confirm(
             self.ctx.overlay,
             "Поиск лучшей стратегии",
-            f"Будет поочерёдно проверено <b>{total}</b> стратегий. Это занимает "
-            f"несколько минут, интернет-обход на это время недоступен.<br><br>{action}",
+            f"Будет поочерёдно проверено <b>{total}</b> стратегий, интернет-обход "
+            f"на это время недоступен.<br><br>{action}",
             "Начать поиск",
             self._start_best_search,
         )
@@ -542,6 +895,7 @@ class ZapretPage(Page):
         self.verify_button.setEnabled(False)
         self.list.setEnabled(False)
         self.search.setEnabled(False)
+        self.exhaustive_button.setEnabled(False)
         self.best_button.setEnabled(True)
         self.best_button.setText("Отменить поиск")
         self.best_label.setText(f"Поиск: 0 из {self._search_total}…")
@@ -549,6 +903,7 @@ class ZapretPage(Page):
         run_task(
             self, search_best_strategy, self.engine, list(self._strategies),
             with_progress=True, cancelled=self._search_cancel.is_set,
+            stop_on_ok=not self.exhaustive_button.isChecked(),
             on_progress=self._on_search_progress,
             on_progress_text=self._on_search_progress_text,
             on_done=self._on_search_done, on_error=self._on_search_error,
@@ -575,6 +930,7 @@ class ZapretPage(Page):
         self.best_button.setIcon(icon("target", self.ctx.palette.accent, 17))
         self.list.setEnabled(True)
         self.search.setEnabled(True)
+        self.exhaustive_button.setEnabled(True)
         self.verify_button.setEnabled(True)
 
     def _on_search_done(self, result) -> None:
@@ -678,6 +1034,9 @@ class ZapretPage(Page):
             layout.addWidget(error)
 
         notes = []
+        if result.early_stop:
+            notes.append("Быстрый режим: остановлено на первой полностью рабочей "
+                         "стратегии (включите «Полный перебор» для рейтинга всех).")
         if result.applied:
             notes.append("Лучшая стратегия выбрана" + (" и запущена." if result.final_running
                                                        else "; запуск — вручную."))

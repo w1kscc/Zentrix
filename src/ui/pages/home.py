@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QRectF, Qt, QVariantAnimation
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QRadialGradient
+from PySide6.QtGui import QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
@@ -12,7 +12,7 @@ from ... import constants
 from ...blocking_check import STATUS_LABELS
 from .. import overlays, theme
 from ..widgets import (
-    Badge, GlassCard, IconOrb, PrimaryButton, StatTile, TrafficChart, human_bytes, human_speed,
+    Badge, GlassCard, IconOrb, PrimaryButton,
     make_heading, svg_pixmap,
 )
 from .base_page import Page, page_heading
@@ -94,7 +94,6 @@ class HomePage(Page):
     def __init__(self, context, parent=None) -> None:
         super().__init__(context, parent)
         self._engine_cards: dict[str, tuple[QLabel, Badge, QPushButton]] = {}
-        self._last_sample = {}
         self._build()
         self._connect()
         self.on_theme()
@@ -102,7 +101,7 @@ class HomePage(Page):
     # ------------------------------------------------------------------ build
     def _build(self) -> None:
         p = self.ctx.palette
-        self.add(page_heading("Главная", "Zapret, Happ и Hiddify — под одним стеклом"))
+        self.add(page_heading("Главная", "Zapret и VPN‑подключения — под одним стеклом"))
 
         hero = QFrame()
         hero.setObjectName("hero")
@@ -145,29 +144,12 @@ class HomePage(Page):
         hero_layout.addWidget(self.orb, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.add(hero)
 
-        stats = QGridLayout()
-        stats.setSpacing(14)
-        self.tile_down = StatTile("Входящая скорость", "download", p, "0 Б/с")
-        self.tile_up = StatTile("Исходящая скорость", "activity", p, "0 Б/с")
-        self.tile_total = StatTile("Трафик за сессию", "wifi", p, "0 Б")
-        stats.addWidget(self.tile_down, 0, 0)
-        stats.addWidget(self.tile_up, 0, 1)
-        stats.addWidget(self.tile_total, 0, 2)
-        self.add_layout(stats)
-
-        chart_card = GlassCard("Скорость во времени", "Обновление раз в секунду · системный интерфейс",
-                               "activity", p)
-        self.chart = TrafficChart(p)
-        self.chart.setMinimumHeight(150)
-        chart_card.add(self.chart)
-        self.add(chart_card)
-
         engines_row = QHBoxLayout()
         engines_row.setSpacing(14)
         for key, title, icon_name, description in (
             ("zapret", "Zapret", "bolt", "DPI-обход через winws"),
-            ("happ", "Happ", "globe", "Xray · VLESS / VMess"),
-            ("hiddify", "Hiddify", "shield", "sing-box · мультипротокол"),
+            ("vpn", "VPN", "globe", "Общие профили · Xray / sing-box"),
+            ("proxy_share", "Шеринг", "wifi", "Подключение устройств в LAN · BETA"),
         ):
             card = GlassCard(title, description, icon_name, p)
             card.setMinimumHeight(150)
@@ -205,7 +187,11 @@ class HomePage(Page):
         services.add(services_button)
         bottom.addWidget(services, 3)
 
-        quick = GlassCard("Быстрые действия", "", "settings", p)
+        quick = GlassCard("Быстрые действия", "Переход к нужным инструментам", "settings", p)
+        quick_actions = QGridLayout()
+        quick_actions.setContentsMargins(0, 2, 0, 0)
+        quick_actions.setHorizontalSpacing(8)
+        quick_actions.setVerticalSpacing(6)
         for text, icon_name, target in (
             ("Обновления компонентов", "download", "updates"),
             ("Очистка от лишних файлов", "trash", "settings"),
@@ -214,12 +200,14 @@ class HomePage(Page):
         ):
             button = QPushButton(text)
             button.setIcon(self._icon(icon_name))
-            button.setProperty("variant", "ghost")
+            button.setProperty("variant", "quickAction")
             button.setCursor(Qt.PointingHandCursor)
-            button.setFixedHeight(34)
-            button.setStyleSheet("text-align:left; padding-left:10px;")
+            button.setMinimumHeight(38)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             button.clicked.connect(lambda _=False, t=target: self.ctx.navigate(t))
-            quick.add(button)
+            position = quick_actions.count()
+            quick_actions.addWidget(button, position // 2, position % 2)
+        quick.add_layout(quick_actions)
         bottom.addWidget(quick, 2)
         self.add_layout(bottom)
         self.finish()
@@ -230,24 +218,25 @@ class HomePage(Page):
         return icon(name, self.ctx.palette.accent, 18)
 
     def _connect(self) -> None:
-        self.ctx.monitor.sampled.connect(self._on_sample)
-        for key, engine in (("zapret", self.ctx.zapret), ("happ", self.ctx.happ),
-                            ("hiddify", self.ctx.hiddify)):
-            engine.status_changed.connect(lambda *_, k=key: self._refresh_engine(k))
+        for key, engine in (("zapret", self.ctx.zapret), ("vpn", self.ctx.happ),
+                            ("vpn", self.ctx.hiddify)):
+            engine.status_changed.connect(lambda *_, k=key: self._status_refresh(k))
             engine.log_line.connect(lambda *_: None)
+
+    def _status_refresh(self, key: str) -> None:
+        self._refresh_engine(key)
+        if key == "vpn":
+            self._refresh_engine("proxy_share")
 
     # ------------------------------------------------------------------- live
     def on_show(self) -> None:
-        self.ctx.start_monitor(show_connections=False)
         self._refresh_all()
 
     def on_hide(self) -> None:
-        # The dashboard owns the sampler only while it is visible. This also
-        # guarantees the Monitor tab opens in the stopped state.
-        self.ctx.stop_monitor()
+        pass
 
     def _refresh_all(self) -> None:
-        for key in ("zapret", "happ", "hiddify"):
+        for key in ("zapret", "vpn", "proxy_share"):
             self._refresh_engine(key)
         self._refresh_hero()
         self._refresh_services()
@@ -259,7 +248,7 @@ class HomePage(Page):
         self.hero_badge.update_badge("АКТИВНО" if running else "ВЫКЛЮЧЕНО",
                                      "ok" if running else "muted")
         if running:
-            strategy = self.ctx.settings.get("zapret.strategy", "")
+            strategy = engine.active_strategy or self.ctx.settings.get("zapret.strategy", "")
             self.hero_subtitle.setText(f"Zapret работает · {strategy} · {engine._message}")
             self.toggle_button.setText("Остановить обход")
         else:
@@ -269,10 +258,20 @@ class HomePage(Page):
         self.admin_notice.setVisible(not self.ctx.admin())
 
     def _refresh_engine(self, key: str) -> None:
-        engine = getattr(self.ctx, key)
+        if key == "proxy_share":
+            detail, badge, _button = self._engine_cards[key]
+            sharing = bool(self.ctx.settings.get("vpn.share", False))
+            active = any(engine.status == "running" for engine in (self.ctx.happ, self.ctx.hiddify))
+            badge.update_badge("РАЗДАЁТСЯ" if sharing and active else "ВЫКЛЮЧЕНО",
+                               "ok" if sharing and active else "muted")
+            detail.setText("Прокси доступен в локальной сети" if sharing and active else
+                           "Включите в разделе «Шеринг»")
+            return
+        engine = (self.ctx.happ if self.ctx.settings.get("vpn.core", "xray") == "xray"
+                  else self.ctx.hiddify) if key == "vpn" else self.ctx.zapret
         detail, badge, _button = self._engine_cards[key]
         status = engine.status
-        if key in {"happ", "hiddify"} and not engine.core_installed() and status == "stopped":
+        if key == "vpn" and not engine.core_installed() and status == "stopped":
             badge.update_badge("НЕТ ЯДРА", "warn")
             detail.setText("Ядро не установлено — откройте вкладку")
         elif status == "running":
@@ -292,18 +291,6 @@ class HomePage(Page):
                            else "Требуется установка ядра")
         if key == "zapret":
             self._refresh_hero()
-
-    def _on_sample(self, data: dict) -> None:
-        self._last_sample = data
-        self.tile_down.set_value(human_speed(data.get("down", 0)),
-                                 f"{human_bytes(data.get('total_down', 0))} получено")
-        self.tile_up.set_value(human_speed(data.get("up", 0)),
-                               f"{human_bytes(data.get('total_up', 0))} отправлено")
-        self.tile_total.set_value(
-            human_bytes(data.get("total_down", 0) + data.get("total_up", 0)),
-            f"{data.get('connections', 0)} активных соединений",
-        )
-        self.chart.push(data.get("down", 0), data.get("up", 0))
 
     def _refresh_services(self) -> None:
         while self.services_box.count():
@@ -383,8 +370,7 @@ class HomePage(Page):
     def on_theme(self) -> None:
         p = self.ctx.palette
         self.orb.set_palette(p)
-        self.chart.set_palette(p)
-        for key in ("zapret", "happ", "hiddify"):
+        for key in ("zapret", "vpn", "proxy_share"):
             _detail, _badge, button = self._engine_cards[key]
             button.setIcon(self._icon("chevron"))
         self._refresh_hero()

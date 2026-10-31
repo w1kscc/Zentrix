@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes as wt
+import json
 import os
 import socket
 import struct
@@ -15,6 +16,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from . import paths
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -317,6 +320,77 @@ def tcp_connections(established_only: bool = True) -> list[TcpConnection]:
 # ------------------------------------------------------------------------ proxy
 INTERNET_OPTION_REFRESH = 37
 INTERNET_OPTION_SETTINGS_CHANGED = 39
+_PROXY_BACKUP_FILE = paths.DATA_DIR / "system-proxy-backup.json"
+
+
+def _read_system_proxy_state() -> dict[str, object]:
+    import winreg
+
+    key_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_QUERY_VALUE) as key:
+        try:
+            enabled, _ = winreg.QueryValueEx(key, "ProxyEnable")
+            enabled_exists = True
+        except FileNotFoundError:
+            enabled, enabled_exists = 0, False
+        try:
+            server, _ = winreg.QueryValueEx(key, "ProxyServer")
+            server_exists = True
+        except FileNotFoundError:
+            server, server_exists = "", False
+    return {"enabled": bool(enabled), "enabled_exists": enabled_exists,
+            "server": str(server), "server_exists": server_exists}
+
+
+def _write_system_proxy_state(state: dict[str, object]) -> bool:
+    import winreg
+
+    key_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+            if state.get("enabled_exists", True):
+                winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD,
+                                  1 if state.get("enabled") else 0)
+            else:
+                try:
+                    winreg.DeleteValue(key, "ProxyEnable")
+                except FileNotFoundError:
+                    pass
+            if state.get("server_exists", True):
+                winreg.SetValueEx(key, "ProxyServer", 0, winreg.REG_SZ,
+                                  str(state.get("server", "")))
+            else:
+                try:
+                    winreg.DeleteValue(key, "ProxyServer")
+                except FileNotFoundError:
+                    pass
+        wininet.InternetSetOptionW(None, INTERNET_OPTION_SETTINGS_CHANGED, None, 0)
+        wininet.InternetSetOptionW(None, INTERNET_OPTION_REFRESH, None, 0)
+        return True
+    except Exception:
+        return False
+
+
+def restore_stale_system_proxy() -> bool:
+    """Restore the user's previous WinINET values after an unclean exit."""
+    if not IS_WINDOWS or not _PROXY_BACKUP_FILE.exists():
+        return False
+    try:
+        state = json.loads(_PROXY_BACKUP_FILE.read_text(encoding="utf-8"))
+        if not isinstance(state, dict):
+            return False
+        current = _read_system_proxy_state()
+        expected_server = str(state.get("zentrix_server", ""))
+        if not current.get("enabled") or current.get("server") != expected_server:
+            # The user changed the proxy after Zentrix exited; preserve that choice.
+            _PROXY_BACKUP_FILE.unlink(missing_ok=True)
+            return False
+        if not _write_system_proxy_state(state):
+            return False
+        _PROXY_BACKUP_FILE.unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
 
 
 def set_system_proxy(enable: bool, server: str = "") -> bool:
@@ -327,6 +401,29 @@ def set_system_proxy(enable: bool, server: str = "") -> bool:
 
     key_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings"
     try:
+        if enable and not _PROXY_BACKUP_FILE.exists():
+            original = _read_system_proxy_state()
+            original["zentrix_server"] = server
+            _PROXY_BACKUP_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _PROXY_BACKUP_FILE.write_text(json.dumps(original), encoding="utf-8")
+        elif enable and _PROXY_BACKUP_FILE.exists():
+            original = json.loads(_PROXY_BACKUP_FILE.read_text(encoding="utf-8"))
+            original["zentrix_server"] = server
+            _PROXY_BACKUP_FILE.write_text(json.dumps(original), encoding="utf-8")
+        if not enable and _PROXY_BACKUP_FILE.exists():
+            try:
+                original = json.loads(_PROXY_BACKUP_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                original = None
+            if isinstance(original, dict):
+                current = _read_system_proxy_state()
+                expected_server = str(original.get("zentrix_server", ""))
+                if current.get("enabled") and current.get("server") == expected_server:
+                    if not _write_system_proxy_state(original):
+                        return False
+                # Preserve changes made manually while Zentrix was connected.
+                _PROXY_BACKUP_FILE.unlink(missing_ok=True)
+                return True
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, "ProxyEnable", 0, winreg.REG_DWORD, 1 if enable else 0)
             if enable and server:

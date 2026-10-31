@@ -13,8 +13,8 @@ class HiddifyPage(ProxyPage):
         super().__init__(
             context,
             context.hiddify,
-            "Hiddify",
-            "Headless-интеграция hiddify-app 4.1.1 · ядро sing-box, без окон Hiddify",
+            "sing-box",
+            "VPN через ядро sing-box · совместимые мультипротокольные узлы",
             "Источник: hiddify-app-4.1.1 · ядро sing-box · mixed-прокси + Clash API",
             "sing-box",
             parent,

@@ -385,8 +385,8 @@ class SettingsPage(Page):
         layout.addWidget(zapret_card)
 
         for engine, title, description in (
-            (self.ctx.happ, "Happ · Xray", "Ядро Xray-core и ссылки vless / vmess"),
-            (self.ctx.hiddify, "Hiddify · sing-box", "Ядро sing-box и мультипротокольные ссылки"),
+            (self.ctx.happ, "Xray", "Ядро Xray-core и поддерживаемые VPN‑ссылки"),
+            (self.ctx.hiddify, "sing-box", "Ядро sing-box и мультипротокольные ссылки"),
         ):
             card = GlassCard(title, description, "globe" if engine.key == "happ" else "shield", p)
             state = QLabel("")
@@ -396,9 +396,9 @@ class SettingsPage(Page):
             setattr(self, f"_{engine.key}_state", state)
             row = QHBoxLayout()
             row.setSpacing(8)
-            open_button = QPushButton("Открыть вкладку")
+            open_button = QPushButton("Открыть VPN")
             open_button.setProperty("variant", "chip")
-            open_button.clicked.connect(lambda _=False, k=engine.key: self.ctx.navigate(k))
+            open_button.clicked.connect(lambda: self.ctx.navigate("vpn"))
             row.addWidget(open_button)
             row.addStretch(1)
             card.add_layout(row)
@@ -534,7 +534,7 @@ class SettingsPage(Page):
         title = QLabel("Zentrix")
         title.setObjectName("h1")
         column.addWidget(title)
-        version = QLabel(f"Версия {constants.APP_VERSION} · {constants.APP_LICENSE}")
+        version = QLabel(f"Версия {constants.APP_VERSION_LABEL} · {constants.APP_LICENSE}")
         version.setObjectName("muted")
         column.addWidget(version)
         description = QLabel(

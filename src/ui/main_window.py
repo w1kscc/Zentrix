@@ -26,21 +26,21 @@ from .workers import run_task
 log = get_logger("window")
 
 NAV = (
-    ("home", "Главная", "home"),
-    ("zapret", "Zapret", "bolt"),
-    ("happ", "Happ", "globe"),
-    ("hiddify", "Hiddify", "shield"),
-    ("monitor", "Мониторинг", "activity"),
-    ("blockcheck", "Проверки", "target"),
-    ("updates", "Обновления", "download"),
-    ("settings", "Настройки", "settings"),
+    ("home", "Главная", "home", ""),
+    ("zapret", "Zapret", "bolt", ""),
+    ("vpn", "VPN", "globe", ""),
+    ("proxy_share", "Шеринг", "wifi", "BETA"),
+    ("monitor", "Мониторинг", "activity", ""),
+    ("blockcheck", "Проверки", "target", ""),
+    ("updates", "Обновления", "download", ""),
+    ("settings", "Настройки", "settings", ""),
 )
 
 PAGE_MODULES = {
     "home": ("home", "HomePage"),
     "zapret": ("zapret", "ZapretPage"),
-    "happ": ("happ", "HappPage"),
-    "hiddify": ("hiddify", "HiddifyPage"),
+    "vpn": ("vpn", "VpnPage"),
+    "proxy_share": ("proxy_share", "ProxySharePage"),
     "monitor": ("monitor", "MonitorPage"),
     "blockcheck": ("blockcheck", "BlockCheckPage"),
     "updates": ("updates", "UpdatesPage"),
@@ -98,7 +98,7 @@ class TitleBar(QWidget):
         self.brand = QLabel("ZENTRIX")
         self.brand.setObjectName("brandName")
         layout.addWidget(self.brand, 0, Qt.AlignVCenter)
-        self.version = QLabel(f"v{constants.APP_VERSION}")
+        self.version = QLabel(f"v{constants.APP_VERSION_LABEL}")
         self.version.setObjectName("tiny")
         layout.addWidget(self.version, 0, Qt.AlignVCenter)
         layout.addStretch(1)
@@ -124,9 +124,13 @@ class TitleBar(QWidget):
         self.min_button.setToolTip("Свернуть")
         self.max_button.setToolTip("Развернуть")
         self.close_button.setToolTip("Закрыть")
+        controls = QWidget(self)
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(0)
         for button in (self.min_button, self.max_button, self.close_button):
-            layout.addWidget(button)
-        layout.addSpacing(0)
+            controls_layout.addWidget(button)
+        layout.addWidget(controls)
 
         self._status_kind = "muted"
         self.set_palette(palette_obj)
@@ -139,6 +143,7 @@ class TitleBar(QWidget):
         button.setFixedSize(46, 46)
         button.setIconSize(QSize(14, 14))
         button.setCursor(Qt.PointingHandCursor)
+        button.setAutoRaise(True)
         return button
 
     def set_palette(self, palette_obj: theme.Palette) -> None:
@@ -215,7 +220,7 @@ class MainWindow(QMainWindow):
         self._nav_buttons: dict[str, NavButton] = {}
         self._shortcuts: list[QShortcut] = []
 
-        self.setWindowTitle(f"{constants.APP_NAME} {constants.APP_VERSION}")
+        self.setWindowTitle(f"{constants.APP_NAME} {constants.APP_VERSION_LABEL}")
         self.setWindowIcon(QIcon(str(paths.BRAND_DIR / "zentrix.ico")))
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setMinimumSize(1080, 700)
@@ -243,8 +248,8 @@ class MainWindow(QMainWindow):
         side.setSpacing(4)
         self._nav_group = QButtonGroup(self)
         self._nav_group.setExclusive(True)
-        for index, (key, label, icon_name) in enumerate(NAV):
-            button = NavButton(label, icon_name, p)
+        for index, (key, label, icon_name, badge) in enumerate(NAV):
+            button = NavButton(label, icon_name, p, badge=badge)
             self._nav_group.addButton(button)
             button.clicked.connect(lambda _=False, k=key: self.navigate(k))
             self._nav_buttons[key] = button
@@ -265,7 +270,7 @@ class MainWindow(QMainWindow):
         self.footer_button.setCursor(Qt.PointingHandCursor)
         self.footer_button.clicked.connect(self._admin_help)
         footer_layout.addWidget(self.footer_button)
-        footer_version = QLabel(f"{constants.APP_VERSION} · {constants.APP_LICENSE}")
+        footer_version = QLabel(f"{constants.APP_VERSION_LABEL} · {constants.APP_LICENSE}")
         footer_version.setObjectName("tiny")
         footer_layout.addWidget(footer_version)
         side.addWidget(footer)
@@ -296,6 +301,8 @@ class MainWindow(QMainWindow):
         self._refresh_status()
 
         last_page = str(self.ctx.settings.get("ui.last_page", "home") or "home")
+        if last_page in {"happ", "hiddify"}:
+            last_page = "vpn"
         if last_page not in self._nav_buttons:
             last_page = "home"
         self.navigate(last_page)
@@ -419,7 +426,7 @@ class MainWindow(QMainWindow):
 
     # --------------------------------------------------------------- shortcuts
     def _install_shortcuts(self) -> None:
-        for index, (key, _label, _icon) in enumerate(NAV):
+        for index, (key, _label, _icon, _badge) in enumerate(NAV):
             shortcut = QShortcut(QKeySequence(f"Ctrl+{index + 1}"), self)
             shortcut.activated.connect(lambda k=key: self.navigate(k))
             self._shortcuts.append(shortcut)
@@ -464,7 +471,8 @@ class MainWindow(QMainWindow):
 
     def _refresh_status(self) -> None:
         zapret = self.ctx.zapret.status == "running"
-        proxy = any(engine.status == "running" for engine in (self.ctx.happ, self.ctx.hiddify))
+        proxy = any(engine.status == "running"
+                    for engine in (self.ctx.happ, self.ctx.hiddify, self.ctx.share))
         if zapret and proxy:
             self.titlebar.set_status("Обход и прокси активны", "ok")
         elif zapret:
@@ -472,7 +480,7 @@ class MainWindow(QMainWindow):
         elif proxy:
             self.titlebar.set_status("Прокси активен", "info")
         elif any(engine.status in {"starting", "stopping"}
-                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify)):
+                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify, self.ctx.share)):
             self.titlebar.set_status("Подключение…", "info")
         else:
             self.titlebar.set_status("Обход выключен", "muted")

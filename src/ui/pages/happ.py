@@ -13,8 +13,8 @@ class HappPage(ProxyPage):
         super().__init__(
             context,
             context.happ,
-            "Happ",
-            "Headless-интеграция happ-desktop 4.6.1 · ядро Xray, без окон Happ",
+            "Xray",
+            "VPN через ядро Xray · совместимые узлы VLESS / VMess / Trojan / SS",
             "Источник: happ-desktop-4.6.1 · ядро Xray-core · локальный SOCKS/HTTP",
             "Xray-core",
             parent,

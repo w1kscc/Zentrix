@@ -448,16 +448,17 @@ def _parse_json_profile(text: str) -> list[ProxyNode]:
     return nodes
 
 
-def xray_config(node: ProxyNode, socks_port: int = 10808, http_port: int = 10809) -> dict[str, Any]:
+def xray_config(node: ProxyNode, socks_port: int = 10808, http_port: int = 10809,
+                listen_host: str = "127.0.0.1") -> dict[str, Any]:
     return {
         "log": {"loglevel": "warning"},
         "inbounds": [
             {
-                "tag": "socks-in", "listen": "127.0.0.1", "port": socks_port,
+                "tag": "socks-in", "listen": listen_host, "port": socks_port,
                 "protocol": "socks", "settings": {"udp": True, "auth": "noauth"},
             },
             {
-                "tag": "http-in", "listen": "127.0.0.1", "port": http_port,
+                "tag": "http-in", "listen": listen_host, "port": http_port,
                 "protocol": "http", "settings": {},
             },
         ],
@@ -473,22 +474,93 @@ def xray_config(node: ProxyNode, socks_port: int = 10808, http_port: int = 10809
     }
 
 
-def singbox_config(node: ProxyNode, mixed_port: int = 2080, api_port: int = 9091) -> dict[str, Any]:
+def singbox_config(node: ProxyNode | list[ProxyNode], mixed_port: int = 2080,
+                   api_port: int = 9091, listen_host: str = "127.0.0.1",
+                   backend_ports: list[int] | None = None) -> dict[str, Any]:
+    nodes = node if isinstance(node, list) else [node]
+    if not nodes:
+        raise ValueError("Список узлов sing-box пуст")
+    if backend_ports is not None and len(backend_ports) != len(nodes):
+        raise ValueError("Количество портов должно совпадать с количеством узлов")
+
+    outbounds: list[dict[str, Any]] = []
+    inbounds: list[dict[str, Any]] = []
+    routes: list[dict[str, Any]] = [
+        {"ip_is_private": True, "outbound": "direct"},
+    ]
+    for index, proxy_node in enumerate(nodes):
+        tag = f"proxy-{index + 1}"
+        outbound = proxy_node.to_singbox_outbound()
+        outbound["tag"] = tag
+        outbounds.append(outbound)
+        if backend_ports is not None:
+            inbound_tag = f"balance-in-{index + 1}"
+            inbounds.append({
+                "type": "mixed", "tag": inbound_tag, "listen": "127.0.0.1",
+                "listen_port": int(backend_ports[index]),
+            })
+            routes.append({"inbound": [inbound_tag], "outbound": tag})
+
+    if backend_ports is None:
+        inbounds.append({
+            "type": "mixed", "tag": "mixed-in", "listen": listen_host,
+            "listen_port": mixed_port,
+        })
+        routes.append({"inbound": ["mixed-in"], "outbound": "proxy-1"})
+    outbounds.append({"type": "direct", "tag": "direct"})
     return {
         "log": {"level": "warn", "timestamp": True},
-        "inbounds": [
-            {
-                "type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1",
-                "listen_port": mixed_port,
-            }
-        ],
-        "outbounds": [node.to_singbox_outbound(), {"type": "direct", "tag": "direct"}],
+        "inbounds": inbounds,
+        "outbounds": outbounds,
         "route": {
-            "rules": [{"ip_is_private": True, "outbound": "direct"}],
+            "rules": routes,
+            "final": "proxy-1",
             "auto_detect_interface": True,
         },
         "experimental": {
             "clash_api": {"external_controller": f"127.0.0.1:{api_port}"},
             "cache_file": {"enabled": True},
+        },
+    }
+
+
+def direct_xray_config(socks_port: int = 10808, http_port: int = 10809,
+                       listen_host: str = "127.0.0.1") -> dict[str, Any]:
+    """Xray config that proxies traffic directly (no tunnel).
+
+    Used by proxy sharing over Zapret: devices connect to the local inbound,
+    traffic leaves the PC as-is so winws.exe can process it.
+    """
+    return {
+        "log": {"loglevel": "warning"},
+        "inbounds": [
+            {
+                "tag": "socks-in", "listen": listen_host, "port": socks_port,
+                "protocol": "socks", "settings": {"udp": True, "auth": "noauth"},
+            },
+            {
+                "tag": "http-in", "listen": listen_host, "port": http_port,
+                "protocol": "http", "settings": {},
+            },
+        ],
+        "outbounds": [{"protocol": "freedom", "tag": "direct"}],
+        "routing": {"domainStrategy": "AsIs"},
+    }
+
+
+def direct_singbox_config(mixed_port: int = 2080,
+                          listen_host: str = "127.0.0.1") -> dict[str, Any]:
+    """sing-box config that proxies traffic directly (no tunnel)."""
+    return {
+        "log": {"level": "warn", "timestamp": True},
+        "inbounds": [
+            {"type": "mixed", "tag": "mixed-in", "listen": listen_host,
+             "listen_port": mixed_port},
+        ],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+        "route": {
+            "rules": [],
+            "final": "direct",
+            "auto_detect_interface": True,
         },
     }

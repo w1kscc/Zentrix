@@ -23,8 +23,9 @@ VERIFY_SERVICE_IDS = ("youtube", "discord", "telegram", "github")
 SEARCH_SERVICE_IDS = ("youtube", "discord", "telegram")
 STARTUP_GRACE = 2.5
 PROBE_TIMEOUT = 6.0
-SEARCH_GRACE = 2.0
-SEARCH_PROBE_TIMEOUT = 4.5
+SEARCH_GRACE = 1.2
+SEARCH_PROBE_TIMEOUT = 3.5
+SEARCH_TCP_TIMEOUT = 3.0
 
 
 @dataclass
@@ -58,7 +59,8 @@ def verification_services() -> list[dict]:
 
 
 def probe_services(services: list[dict] | None = None,
-                   tls_timeout: float = PROBE_TIMEOUT) -> list[ServiceResult]:
+                   tls_timeout: float = PROBE_TIMEOUT,
+                   tcp_timeout: float = 4.0) -> list[ServiceResult]:
     """Probe services concurrently and return results in the requested order."""
     items = list(services) if services is not None else verification_services()
     results: list[ServiceResult] = []
@@ -66,7 +68,8 @@ def probe_services(services: list[dict] | None = None,
         return results
     with ThreadPoolExecutor(max_workers=min(4, len(items))) as pool:
         futures = {
-            pool.submit(check_service, service, tls_timeout=tls_timeout): service
+            pool.submit(check_service, service, tls_timeout=tls_timeout,
+                        tcp_timeout=tcp_timeout): service
             for service in items
         }
         for future in as_completed(futures):
@@ -84,16 +87,31 @@ def probe_services(services: list[dict] | None = None,
 
 
 def summarize(results: list[ServiceResult]) -> tuple[str, str]:
-    """Return a human verdict and a UI level for a set of probe results."""
+    """Return a human verdict and a UI level for a set of probe results.
+
+    A completed TLS handshake is the primary signal that the DPI bypass
+    works: fake-TLS strategies intentionally slow the handshake down, so a
+    slow-but-successful connection must not fail the verdict.
+    """
     total = len(results)
     if not total:
         return "Проверка не дала результатов", "err"
     ok = sum(1 for item in results if item.status == "ok")
     unstable = sum(1 for item in results if item.status == "unstable")
+    # A completed TLS handshake (or an outright ok status) is what proves the
+    # DPI bypass works. DNS-spoofed responses "succeed" against the wrong
+    # server, so they must not count.
+    opened = sum(1 for item in results
+                 if (item.tls_ok or item.status == "ok")
+                 and not (item.status == "unstable" and item.reason == "DNS-подмена"))
     if ok == total:
         return f"Все {total} сервисов доступны — стратегия работает", "ok"
-    if ok + unstable >= max(1, (total + 1) // 2):
-        return (f"Доступно {ok} из {total}, нестабильно {unstable} — "
+    if opened == total:
+        return (f"TLS установлен для всех {total} сервисов"
+                + (f" (мгновенно {ok})" if ok else "")
+                + " — стратегия работает"), "ok"
+    if opened and opened + unstable >= max(1, (total + 1) // 2):
+        return (f"TLS установлен для {opened} из {total}, нестабильно {unstable} — "
                 "стратегия работает частично"), "warn"
     return f"Доступно {ok} из {total} — стратегия не обходит блокировки", "err"
 
@@ -163,6 +181,7 @@ class SearchReport:
     best: StrategyReport | None = None
     total: int = 0
     cancelled: bool = False
+    early_stop: bool = False
     was_running: bool = False
     final_running: bool = False
     applied: str = ""
@@ -202,18 +221,44 @@ def rank_reports(reports: list[StrategyReport]) -> list[StrategyReport]:
 
 
 def _is_usable(report: StrategyReport) -> bool:
-    return report.total > 0 and report.level in {"ok", "warn"} and report.ok_count > 0
+    # A completed TLS handshake for at least one service = the bypass works.
+    # DNS-spoofed "success" is excluded: it talks to the wrong server.
+    return (report.total > 0 and report.level in {"ok", "warn"}
+            and any((item.tls_ok or item.status == "ok")
+                    and not (item.status == "unstable" and item.reason == "DNS-подмена")
+                    for item in report.results))
+
+
+def probe_search(services: list[dict], tls_timeout: float = SEARCH_PROBE_TIMEOUT,
+                 tcp_timeout: float = SEARCH_TCP_TIMEOUT) -> list[ServiceResult]:
+    """Fast search-mode probe: screen with one service before the rest.
+
+    A strategy that cannot pass the first service is dead weight during the
+    search — probing the remaining services would only add seconds per
+    failing strategy. Working strategies still get the full probe.
+    """
+    first = probe_services(services[:1], tls_timeout=tls_timeout, tcp_timeout=tcp_timeout)
+    if not first or first[0].status in {"blocked", "error"}:
+        return first
+    if len(services) > 1:
+        return first + probe_services(services[1:], tls_timeout=tls_timeout,
+                                      tcp_timeout=tcp_timeout)
+    return first
 
 
 def search_best_strategy(engine, strategies=None, *,
                          services: list[dict] | None = None,
                          grace: float = SEARCH_GRACE,
-                         progress=None, cancelled=None) -> SearchReport:
-    """Try every strategy, rank the results and apply the best one.
+                         progress=None, cancelled=None,
+                         stop_on_ok: bool = True) -> SearchReport:
+    """Try strategies, rank the results and apply the best one.
 
-    ``progress`` is called as ``progress(index, total, name)``. ``cancelled``
-    is a zero-argument callable checked before each strategy. Blocking work:
-    always call this from a worker thread.
+    By default the search stops as soon as a strategy opens every probed
+    service (there is nothing better to find); pass ``stop_on_ok=False`` to
+    always test the whole list and rank it. ``progress`` is called as
+    ``progress(index, total, name)``. ``cancelled`` is a zero-argument
+    callable checked before each strategy. Blocking work: always call this
+    from a worker thread.
     """
     started = time.perf_counter()
     items = list(strategies) if strategies is not None else engine.strategies()
@@ -240,7 +285,7 @@ def search_best_strategy(engine, strategies=None, *,
                 time.sleep(max(0.5, float(grace)))
                 if not engine.running:
                     raise RuntimeError("winws.exe завершился во время проверки")
-                item.results = probe_services(probe_list, tls_timeout=SEARCH_PROBE_TIMEOUT)
+                item.results = probe_search(probe_list)
                 item.verdict, item.level = summarize(item.results)
             except Exception as exc:
                 item.error = str(exc) or exc.__class__.__name__
@@ -257,6 +302,10 @@ def search_best_strategy(engine, strategies=None, *,
             result.reports.append(item)
             if progress:
                 progress(index, len(items), strategy.name)
+            if (stop_on_ok and item.level == "ok"
+                    and not (cancelled and cancelled())):
+                result.early_stop = True
+                break
     except Exception as exc:  # pragma: no cover - defensive
         result.error = str(exc) or exc.__class__.__name__
         log.exception("Поиск лучшей стратегии упал")

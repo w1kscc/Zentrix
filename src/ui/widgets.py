@@ -103,10 +103,12 @@ def repolish(widget: QWidget) -> None:
 class NavButton(QAbstractButton):
     """Sidebar entry with an animated hover state and an accent indicator."""
 
-    def __init__(self, label: str, icon_name: str, palette_obj: theme.Palette, parent=None) -> None:
+    def __init__(self, label: str, icon_name: str, palette_obj: theme.Palette, parent=None,
+                 badge: str = "") -> None:
         super().__init__(parent)
         self.label = label
         self.icon_name = icon_name
+        self.badge = badge
         self._palette = palette_obj
         self._hover = 0.0
         self._anim = QVariantAnimation(self)
@@ -169,7 +171,22 @@ class NavButton(QAbstractButton):
         font.setPointSize(max(9, p.font_size))
         font.setWeight(QFont.DemiBold if active else QFont.Medium)
         painter.setFont(font)
-        painter.drawText(QRectF(46, 0, self.width() - 56, self.height()), Qt.AlignVCenter | Qt.AlignLeft, self.label)
+        label_width = self.width() - 56 - (56 if self.badge else 0)
+        painter.drawText(QRectF(46, 0, label_width, self.height()), Qt.AlignVCenter | Qt.AlignLeft, self.label)
+
+        if self.badge:
+            chip_font = QFont(self.font())
+            chip_font.setPointSize(max(7, p.font_size - 2))
+            chip_font.setWeight(QFont.Bold)
+            painter.setFont(chip_font)
+            metrics = QFontMetrics(chip_font)
+            chip_width = max(40, metrics.horizontalAdvance(self.badge) + 16)
+            chip = QRectF(self.width() - 14 - chip_width, (self.height() - 18) / 2, chip_width, 18)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(theme.qcolor(p.warning, 0.16))
+            painter.drawRoundedRect(chip, 9, 9)
+            painter.setPen(QColor(p.warning))
+            painter.drawText(chip, Qt.AlignCenter, self.badge)
         painter.end()
 
 
@@ -461,7 +478,7 @@ class TrafficChart(QWidget):
         if rect.width() <= 0 or rect.height() <= 0:
             return
 
-        grid_pen = QPen(theme.qcolor(p.surface if p.is_dark else "#0F172A", 0.06), 1, Qt.DashLine)
+        grid_pen = QPen(theme.qcolor(p.surface if p.is_dark else "#0F172A", 0.075), 1, Qt.SolidLine)
         painter.setPen(grid_pen)
         for index in range(1, 4):
             y = rect.top() + rect.height() * index / 4
@@ -497,9 +514,9 @@ class TrafficChart(QWidget):
             painter.setBrush(gradient)
             painter.drawPath(fill)
             painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(theme.qcolor(colour, 0.30), 5, Qt.SolidLine, Qt.RoundCap))
+            painter.setPen(QPen(theme.qcolor(colour, 0.12), 8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             painter.drawPath(path)
-            painter.setPen(QPen(QColor(colour), 2, Qt.SolidLine, Qt.RoundCap))
+            painter.setPen(QPen(QColor(colour), 2.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             painter.drawPath(path)
         painter.end()
 

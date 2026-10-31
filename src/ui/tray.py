@@ -53,6 +53,10 @@ class TrayController(QObject):
         hide_action.triggered.connect(self.window.hide_to_tray)
         self.engine_action = self.menu.addAction("Включить Zapret")
         self.engine_action.triggered.connect(self.window.toggle_zapret)
+        vpn_action = self.menu.addAction("VPN")
+        vpn_action.triggered.connect(lambda: self.window.show_page("vpn"))
+        share_action = self.menu.addAction("Прокси‑шеринг")
+        share_action.triggered.connect(lambda: self.window.show_page("proxy_share"))
         self.menu.addSeparator()
 
         check_action = self.menu.addAction("Проверить блокировки")
@@ -83,11 +87,14 @@ class TrayController(QObject):
         else:
             self.icon.setIcon(QIcon(str(paths.BRAND_DIR / "zentrix.ico")))
         self.icon.setToolTip(
-            f"Zentrix {constants.APP_VERSION} · "
+            f"Zentrix {constants.APP_VERSION_LABEL} · "
             + ("обход активен" if active else "обход выключен")
         )
         if active:
-            names = ", ".join(engine.title for engine in engines if engine.status == "running")
+            names = ", ".join(
+                "Xray" if engine.key == "happ" else "sing-box" if engine.key == "hiddify" else engine.title
+                for engine in engines if engine.status == "running"
+            )
             self.status_action.setText(f"Активно: {names}")
         else:
             self.status_action.setText("Обход выключен")

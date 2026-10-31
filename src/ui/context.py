@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from .. import paths, winapi
-from ..engines import HappEngine, HiddifyEngine, ZapretEngine
+from ..engines import HappEngine, HiddifyEngine, ShareProxyEngine, ZapretEngine
 from ..logger import get_logger
 from ..settings_store import settings as global_settings
 from ..sound_generator import SoundManager
@@ -27,6 +27,8 @@ class AppContext(QObject):
 
     def __init__(self, app, sound: SoundManager, parent=None) -> None:
         super().__init__(parent)
+        if winapi.restore_stale_system_proxy():
+            log.warning("Восстановлены системные настройки прокси после аварийного выхода")
         self.app = app
         self.settings = global_settings
         self.sound = sound
@@ -48,7 +50,8 @@ class AppContext(QObject):
         self.zapret = ZapretEngine(self)
         self.happ = HappEngine(self)
         self.hiddify = HiddifyEngine(self)
-        for engine in (self.zapret, self.happ, self.hiddify):
+        self.share = ShareProxyEngine(self)
+        for engine in (self.zapret, self.happ, self.hiddify, self.share):
             threading.Thread(target=engine.adopt_stale_pid, daemon=True,
                              name=f"stale-{engine.key}").start()
 
@@ -145,9 +148,9 @@ class AppContext(QObject):
                 threading.Thread(target=self._safe_start, args=(self.zapret,), daemon=True).start()
             else:
                 log.info("Автозапуск Zapret пропущен: нет прав или движка")
-        for engine, key in ((self.happ, "happ"), (self.hiddify, "hiddify")):
-            if self.settings.get(f"{key}.autostart", False) and engine.core_installed():
-                threading.Thread(target=self._safe_start, args=(engine,), daemon=True).start()
+        engine = self.hiddify if self.settings.get("vpn.core", "xray") == "singbox" else self.happ
+        if self.settings.get(f"{engine.ns}.autostart", False) and engine.core_installed():
+            threading.Thread(target=self._safe_start, args=(engine,), daemon=True).start()
 
     @staticmethod
     def _safe_start(engine) -> None:
@@ -166,13 +169,7 @@ class AppContext(QObject):
             self.stop_monitor()
         except Exception:
             pass
-        # Never leave a dead system proxy behind when the app exits.
-        try:
-            if self.settings.get("happ.sysproxy", False) or self.settings.get("hiddify.sysproxy", False):
-                winapi.set_system_proxy(False)
-        except Exception:
-            pass
-        for engine in (self.zapret, self.happ, self.hiddify):
+        for engine in (self.zapret, self.happ, self.hiddify, self.share):
             try:
                 engine.cleanup()
             except Exception:

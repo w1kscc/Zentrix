@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zentrix — обход блокировок без консолей для Windows</title>
-<meta name="description" content="Zentrix — графическая оболочка для Zapret, Happ и Hiddify в одном окне. Обход блокировок Discord и YouTube на Windows 10/11 без cmd.exe и .bat-файлов.">
+<meta name="description" content="Zentrix — графическая оболочка для Zapret и VPN на Xray или sing-box в одном окне. Windows 10/11 без cmd.exe и консольных окон.">
 <meta name="theme-color" content="#070a12">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="Zentrix — обход блокировок без консолей">
-<meta property="og:description" content="Zapret, Happ и Hiddify в одном аккуратном окне. Windows 10/11.">
+<meta property="og:description" content="Zapret и VPN на Xray или sing-box в одном аккуратном окне. Windows 10/11.">
 <meta property="og:image" content="social-preview.png">
 <meta property="og:url" content="https://w1kscc.github.io/Zentrix/">
 <meta name="twitter:card" content="summary_large_image">
@@ -47,7 +47,7 @@
         <h1>Один клик.<br>Никаких <span class="grad">консолей</span>.</h1>
 
         <p class="lede">
-          Zentrix собирает Zapret, Happ и Hiddify в одно аккуратное окно Windows.
+          Zentrix собирает Zapret и VPN на Xray или sing-box в одно аккуратное окно Windows.
           Запускает стратегии обхода напрямую через <code>winws.exe</code> —
           без <code>cmd.exe</code>, без мигающих чёрных окон и без россыпи
           <code>.bat</code>-файлов на рабочем столе.
@@ -86,7 +86,7 @@
       <h2>Всё нужное — в одном окне</h2>
       <p class="sub">
         Zentrix — оболочка, а не «ещё одна программа на замену». Он управляет
-        тремя известными движками обхода блокировок из единого интерфейса.
+        Zapret и два VPN-ядра из единого интерфейса с общим списком серверов.
       </p>
 
       <div class="grid">
@@ -95,16 +95,32 @@
           <p>
             Автоматически находит стратегии в <code>.bat</code>, разворачивает
             переменные и запускает <code>bin\winws.exe</code> без <code>cmd.exe</code>.
-            22 стратегии, игровой фильтр, свои списки доменов и живой лог.
+            22 стратегии, портовый фильтр TCP/UDP, свои списки доменов и живой лог.
           </p>
         </div>
 
         <div class="card">
-          <h3><span class="ico">H</span> Happ и Hiddify</h3>
+          <h3><span class="ico">V</span> VPN · Xray и sing-box</h3>
           <p>
             Вставьте <code>vless://</code>, <code>vmess://</code>, <code>trojan://</code>
             или <code>ss://</code> — Zentrix разберёт ссылку, сгенерирует конфиг
-            и поднимет локальный SOCKS/HTTP-прокси.
+            и поднимет локальный прокси. Оба ядра используют общий список серверов.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3><span class="ico">⇄</span> Мульти-прокси и шеринг · BETA</h3>
+          <p>
+            sing-box распределяет новые TCP-подключения между максимум пятью серверами.
+            Активный VPN можно раздать устройствам той же локальной сети по HTTP или SOCKS5.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3><span class="ico">◎</span> IP и геолокация</h3>
+          <p>
+            На вкладке VPN отображаются прямой IP и адрес через туннель, страна и город.
+            Для приблизительного местоположения используется ipapi.co.
           </p>
         </div>
 
@@ -128,7 +144,7 @@
         <div class="card">
           <h3><span class="ico">↓</span> Обновления</h3>
           <p>
-            Проверка релизов Zapret, Happ, Hiddify и самого Zentrix через GitHub API.
+            Проверка релизов Zapret, Xray, sing-box и самого Zentrix через GitHub API.
             Обновление Zapret сохраняет ваши <code>lists/</code> и игровой фильтр.
           </p>
         </div>

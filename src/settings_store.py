@@ -58,6 +58,9 @@ DEFAULTS: dict[str, Any] = {
         "autostart": False,
         "extra_args": "",
         "auto_scroll": True,
+        "search_exhaustive": False,
+        "gamefilter_mode": "disabled",
+        "gamefilter_games": [],
     },
     "happ": {
         "path": "",
@@ -78,6 +81,12 @@ DEFAULTS: dict[str, Any] = {
         "api_port": 9091,
         "sysproxy": True,
         "autostart": False,
+    },
+    "vpn": {
+        "core": "xray",
+        "multiproxy": False,
+        "share": False,
+        "share_route": "vpn",
     },
     "monitor": {
         "interval": 1.0,

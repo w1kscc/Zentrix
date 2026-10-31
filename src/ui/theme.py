@@ -183,7 +183,7 @@ def qss(palette: Palette) -> str:
         background: {rgba(palette.bg, 0.0)};
     }}
     QToolTip {{
-        background: {menu_bg};
+        background: {rgba("#FFFFFF", 0.12) if dark else rgba("#0F172A", 0.10)};
         color: {text};
         border: 1px solid {line};
         padding: 6px 9px;
@@ -198,6 +198,11 @@ def qss(palette: Palette) -> str:
         background: {strong};
         border: 1px solid {line};
         border-radius: {radius}px;
+    }}
+    #ipPanel {{
+        background: {rgba(palette.surface, 0.05 if dark else 0.55)};
+        border: 1px solid {line};
+        border-radius: {max(10, radius - 7)}px;
     }}
     #hero {{
         background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
@@ -259,6 +264,14 @@ def qss(palette: Palette) -> str:
         background: transparent; border: 1px solid transparent; color: {muted}; padding: 6px 10px;
     }}
     QPushButton[variant="ghost"]:hover {{ color: {text}; background: {palette.hover}; }}
+    QPushButton[variant="quickAction"] {{
+        background: transparent; border: 1px solid transparent; color: {text};
+        text-align: left; padding: 7px 10px; border-radius: {max(8, radius - 6)}px;
+    }}
+    QPushButton[variant="quickAction"]:hover {{
+        background: {rgba("#FFFFFF", 0.10 if dark else 0.52)};
+        border-color: {rgba("#FFFFFF", 0.07 if dark else 0.22)};
+    }}
     QPushButton[variant="chip"] {{
         background: {rgba(palette.surface, 0.05)}; border: 1px solid {line};
         border-radius: {radius - 4}px; padding: 6px 12px; font-weight: 500;
@@ -271,7 +284,7 @@ def qss(palette: Palette) -> str:
     }}
     QToolButton:hover {{ background: {palette.hover}; }}
     QToolButton:pressed {{ background: {rgba(accent, 0.20)}; }}
-    QToolButton#windowButton {{ border-radius: 0px; padding: 0px; }}
+    QToolButton#windowButton {{ border-radius: 0px; padding: 0px; margin: 0px; }}
     QToolButton#windowButton:hover {{ background: {rgba(palette.surface, 0.10)}; }}
     QToolButton#windowButton[role="close"]:hover {{ background: #E81123; }}
 
@@ -370,6 +383,9 @@ def qss(palette: Palette) -> str:
     QListWidget::item {{ padding: 8px 10px; border-radius: 9px; color: {text}; }}
     QListWidget::item:selected {{ background: {rgba(accent, 0.20)}; }}
     QListWidget::item:hover {{ background: {palette.hover}; }}
+    QListWidget#strategyList::item {{ background: transparent; }}
+    QListWidget#strategyList::item:selected {{ background: transparent; }}
+    QListWidget#strategyList::item:hover {{ background: transparent; }}
 
     QSplitter::handle {{ background: transparent; width: 8px; }}
 

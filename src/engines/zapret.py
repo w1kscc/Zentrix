@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QTimer, Signal
 
 from .. import paths, winapi
 from ..logger import get_logger
@@ -34,6 +34,46 @@ USER_LIST_DEFAULTS: dict[str, tuple[str, ...]] = {
     "list-general-user.txt": ("# Never leave this file empty", "domain.example.abc"),
     "list-exclude-user.txt": ("domain.example.abc",),
 }
+
+
+def validate_port_ranges(value: str, default: str = "1024-65535") -> str:
+    parts = value.split(",")
+    if not parts or any(not part for part in parts):
+        return default
+    validated = []
+    for part in parts:
+        bounds = part.split("-")
+        if len(bounds) not in {1, 2} or not all(item.isdigit() for item in bounds):
+            return default
+        low = int(bounds[0])
+        high = int(bounds[-1])
+        if not (1 <= low <= 65535 and 1 <= high <= 65535 and low <= high):
+            return default
+        validated.append(str(low) if len(bounds) == 1 else f"{low}-{high}")
+    return ",".join(validated)
+
+
+def game_filter_settings(folder: Path) -> dict[str, str]:
+    """Read the upstream port filter settings without executing service.bat."""
+    path = folder / "utils" / "game_filter.enabled"
+    if not path.exists():
+        return {"mode": "disabled", "tcp": "1024-65535", "udp": "1024-65535"}
+    values: dict[str, str] = {}
+    try:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            if "=" in line:
+                key, value = line.split("=", 1)
+                values[key.strip().lower()] = value.strip()
+    except OSError:
+        return {"mode": "disabled", "tcp": "1024-65535", "udp": "1024-65535"}
+    mode = values.get("mode", "all").lower()
+    if mode not in {"all", "tcp", "udp", "disabled"}:
+        mode = "disabled"
+    return {
+        "mode": mode,
+        "tcp": validate_port_ranges(values.get("tcp", "1024-65535")),
+        "udp": validate_port_ranges(values.get("udp", "1024-65535")),
+    }
 
 
 def ensure_user_lists(folder: Path) -> list[Path]:
@@ -153,25 +193,13 @@ def parse_bat(path: Path) -> ParsedCommand:
         "GAMEFILTERTCP": "12",
         "GAMEFILTERUDP": "12",
     }
-    # Upstream stores game-filter settings in utils/game_filter.enabled; when the
-    # toggle is off every strategy uses port 12 (an unused port) so the game
-    # rules stay inert.
-    game_flag = base / "utils" / "game_filter.enabled"
-    if game_flag.exists():
-        variables["GAMEFILTERTCP"] = "1024-65535"
-        variables["GAMEFILTERUDP"] = "1024-65535"
-        try:
-            for raw in game_flag.read_text(encoding="utf-8", errors="replace").splitlines():
-                if "=" not in raw:
-                    continue
-                key, value = raw.split("=", 1)
-                key = key.strip().lower()
-                if key in {"tcp", "tcp_range"}:
-                    variables["GAMEFILTERTCP"] = value.strip() or "1024-65535"
-                elif key in {"udp", "udp_range"}:
-                    variables["GAMEFILTERUDP"] = value.strip() or "1024-65535"
-        except OSError:
-            pass
+    # This upstream "game filter" is port-based and global; WinDivert's
+    # network packet layer cannot select packets by executable path.
+    game_filter = game_filter_settings(base)
+    if game_filter["mode"] in {"all", "tcp"}:
+        variables["GAMEFILTERTCP"] = game_filter["tcp"]
+    if game_filter["mode"] in {"all", "udp"}:
+        variables["GAMEFILTERUDP"] = game_filter["udp"]
     for line in lines:
         match = SET_RE.match(line)
         if not match:
@@ -310,9 +338,107 @@ class ZapretEngine(BaseEngine):
     key = "zapret"
     title = "Zapret"
     strategy_started = Signal(str)
+    gamefilter_state = Signal(str)
+    active_strategy: str | None = None
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        # Game filter watchdog: "" | "paused" | "started" — what we changed.
+        self._gf_hold = ""
+        self._gf_timer = QTimer(self)
+        self._gf_timer.setInterval(3000)
+        self._gf_timer.timeout.connect(self._gamefilter_tick)
+        self._gf_timer.start()
 
     def folder(self) -> Path:
         return resolve_zapret_folder()
+
+    # ----------------------------------------------------------- game filter
+    def _gamefilter_tick(self) -> None:
+        mode = str(settings.get("zapret.gamefilter.mode", "disabled") or "disabled")
+        games = settings.get("zapret.gamefilter.games") or []
+        if mode not in {"isolate", "exclude"} or not games:
+            if self._gf_hold == "paused" and self._status == "stopped":
+                self._gf_hold = ""
+                self._resume_after_pause()
+            elif mode == "disabled":
+                self._gf_hold = ""
+            return
+        try:
+            selected = {Path(item).name.lower() for item in games}
+            active = {item.name.lower() for item in winapi.list_processes()}
+        except Exception:
+            return
+        game_running = bool(selected & active)
+        if mode == "exclude":
+            self._tick_exclude(game_running)
+        else:
+            self._tick_isolate(game_running)
+
+    def _tick_exclude(self, game_running: bool) -> None:
+        # Zapret serves the whole PC but must not touch selected games:
+        # pause winws while a game runs, resume when it closes.
+        if self._gf_hold == "paused" and self._status == "running":
+            self._gf_hold = ""  # user restarted Zapret manually
+            self.gamefilter_state.emit("")
+            return
+        if game_running and self._status == "running" and not self._gf_hold:
+            self._gf_hold = "paused"
+            try:
+                self.stop()
+            except Exception as exc:
+                log.warning("Игровой фильтр: не удалось приостановить Zapret: %s", exc)
+                self._gf_hold = ""
+                return
+            self.gamefilter_state.emit(
+                "Zapret приостановлен: запущена выбранная игра — трафик идёт напрямую"
+            )
+        elif not game_running and self._gf_hold == "paused":
+            self._gf_hold = ""
+            self._resume_after_pause()
+
+    def _tick_isolate(self, game_running: bool) -> None:
+        # Zapret only makes sense while a selected game is running.
+        if self._gf_hold == "started" and self._status == "stopped":
+            self._gf_hold = ""  # user stopped it manually
+            self.gamefilter_state.emit("")
+            return
+        if game_running and self._status == "stopped" and not self._gf_hold:
+            if not winapi.is_admin() or not self.is_available():
+                return
+            self._gf_hold = "started"
+            try:
+                self.start_with()
+            except Exception as exc:
+                log.warning("Игровой фильтр: не удалось запустить Zapret: %s", exc)
+                self._gf_hold = ""
+                return
+            self.gamefilter_state.emit(
+                "Запущена выбранная игра — Zapret включён для игрового трафика"
+            )
+        elif not game_running and self._gf_hold == "started":
+            self._gf_hold = ""
+            if self._status == "running":
+                try:
+                    self.stop()
+                except Exception as exc:
+                    log.warning("Игровой фильтр: не удалось остановить Zapret: %s", exc)
+                    return
+            self.gamefilter_state.emit("Игра закрыта — Zapret остановлен игровым фильтром")
+
+    def _resume_after_pause(self) -> None:
+        if winapi.is_admin() and self.is_available():
+            try:
+                self.start_with()
+            except Exception as exc:
+                log.warning("Игровой фильтр: не удалось возобновить Zapret: %s", exc)
+                return
+            self.gamefilter_state.emit("Игра закрыта — Zapret возобновлён")
+        else:
+            self.gamefilter_state.emit(
+                "Игра закрыта, но Zapret не возобновлён: нужны права администратора"
+            )
+
 
     def strategies(self) -> list[Strategy]:
         return discover_strategies(self.folder())
@@ -378,6 +504,7 @@ class ZapretEngine(BaseEngine):
                 "exited",
             )
         settings.set("zapret.strategy", strategy.filename, save=True)
+        self.active_strategy = strategy.filename
         self._set_status("running", f"{strategy.name} · PID {pid}")
         self.strategy_started.emit(strategy.name)
         self.log_line.emit(f"[Zentrix] Стратегия: {strategy.name}")

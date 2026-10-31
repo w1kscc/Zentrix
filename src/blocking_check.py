@@ -57,6 +57,8 @@ STATUS_LABELS = {
 }
 
 _DOH_CACHE: dict[str, str] = {}
+_DNS_CACHE: dict[str, tuple[float, list[str]]] = {}
+_DNS_TTL = 600.0
 
 
 def _doh_lookup(host: str, timeout: float = 5.0) -> str:
@@ -79,6 +81,11 @@ def _doh_lookup(host: str, timeout: float = 5.0) -> str:
 
 
 def _system_lookup(host: str, timeout: float = 5.0) -> list[str]:
+    # Strategy search resolves the same few hosts dozens of times in a row;
+    # a short-lived cache keeps that from dominating the runtime.
+    cached = _DNS_CACHE.get(host)
+    if cached and time.monotonic() - cached[0] < _DNS_TTL:
+        return list(cached[1])
     pool = ThreadPoolExecutor(max_workers=1)
     try:
         future = pool.submit(socket.getaddrinfo, host, 443, socket.AF_INET, socket.SOCK_STREAM)
@@ -93,10 +100,13 @@ def _system_lookup(host: str, timeout: float = 5.0) -> list[str]:
         address = info[4][0]
         if address not in addresses:
             addresses.append(address)
+    if addresses:
+        _DNS_CACHE[host] = (time.monotonic(), list(addresses))
     return addresses
 
 
-def check_service(service: dict, tls_timeout: float = 5.0) -> ServiceResult:
+def check_service(service: dict, tls_timeout: float = 5.0,
+                  tcp_timeout: float = 4.0) -> ServiceResult:
     result = ServiceResult(id=service["id"], name=service["name"],
                            host=service["host"], strategy=service.get("strategy", ""))
     started = time.perf_counter()
@@ -118,7 +128,7 @@ def check_service(service: dict, tls_timeout: float = 5.0) -> ServiceResult:
 
     tcp_started = time.perf_counter()
     try:
-        sock = socket.create_connection((result.ip, 443), timeout=4.0)
+        sock = socket.create_connection((result.ip, 443), timeout=tcp_timeout)
         result.tcp_ok = True
     except ConnectionRefusedError:
         result.status = "blocked"
@@ -129,7 +139,7 @@ def check_service(service: dict, tls_timeout: float = 5.0) -> ServiceResult:
     except socket.timeout:
         result.status = "blocked"
         result.reason = "Таймаут TCP"
-        result.detail = "Синхронизация TCP не завершилась за 4 секунды"
+        result.detail = f"Синхронизация TCP не завершилась за {int(tcp_timeout)} секунды"
         result.recommendation = f"Запустить Zapret со стратегией «{result.strategy}»"
         return result
     except OSError as exc:

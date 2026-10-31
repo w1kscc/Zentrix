@@ -331,6 +331,17 @@ class BlockCheckPage(Page):
             self.recommend_card.show()
             return
         strategy = self._best_strategy(blocked)
+        active = str(self.ctx.zapret.active_strategy or "")
+        if (self.ctx.zapret.status == "running"
+                and active.casefold() == (strategy or "general.bat").casefold()):
+            self.recommend_badge.update_badge("ОБХОД УЖЕ ВКЛЮЧЁН", "ok")
+            self.recommend_label.setText(
+                f"Zapret уже работает со стратегией <b>{active}</b>. "
+                "Повторно включать обход не требуется."
+            )
+            self.recommend_button.hide()
+            self.recommend_card.show()
+            return
         names = ", ".join(item.name for item in blocked[:5])
         self.recommend_badge.update_badge("НУЖЕН ОБХОД", "warn")
         self.recommend_label.setText(

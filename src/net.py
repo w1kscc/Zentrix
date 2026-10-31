@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import os
 import re
 import shutil
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -170,3 +172,57 @@ def is_connected(timeout: float = 2.5) -> bool:
         return True  # reachable, just an auth/rate-limit response
     except Exception:
         return False
+
+
+def external_ip_info(proxy_url: str | None = None, timeout: float = 8.0) -> dict[str, str]:
+    """Return public IP and approximate GeoIP data from ipapi.co.
+
+    The endpoint sees the client address, so callers may provide the local VPN
+    proxy URL to query the tunneled address instead of the direct one.
+    """
+    request = urllib.request.Request(
+        "https://ipapi.co/json/",
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+    )
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url})
+        if proxy_url else urllib.request.ProxyHandler({})
+    )
+    with opener.open(request, timeout=timeout) as response:
+        payload = json.loads(response.read(64 * 1024).decode("utf-8", errors="replace"))
+    ip_value = str(payload.get("ip", "")).strip()
+    if not ip_value:
+        raise ValueError("Сервис GeoIP не вернул IP-адрес")
+    return {
+        "ip": ip_value,
+        "city": str(payload.get("city", "") or "").strip(),
+        "country_name": str(payload.get("country_name", "") or "").strip(),
+        "country_code": str(payload.get("country_code", "") or "").strip(),
+    }
+
+
+def lan_ipv4_addresses() -> list[str]:
+    """List private IPv4 addresses on active non-tunnel adapters."""
+    try:
+        import psutil
+    except ImportError:
+        return []
+    addresses: list[str] = []
+    for name, stats in psutil.net_if_stats().items():
+        lowered = name.casefold()
+        if not stats.isup or any(token in lowered for token in
+                                 ("vpn", "tap", "tun", "wintun", "wireguard", "loopback",
+                                  "virtual", "vethernet")):
+            continue
+        for address in psutil.net_if_addrs().get(name, []):
+            if address.family != socket.AF_INET:
+                continue
+            try:
+                ip = ipaddress.ip_address(address.address)
+            except ValueError:
+                continue
+            if ip.is_private and not ip.is_loopback and not ip.is_link_local:
+                value = str(ip)
+                if value not in addresses:
+                    addresses.append(value)
+    return addresses

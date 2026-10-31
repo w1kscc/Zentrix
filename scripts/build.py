@@ -39,12 +39,15 @@ PAGE_MODULES = (
     "src.ui.pages.happ",
     "src.ui.pages.hiddify",
     "src.ui.pages.proxy_page",
+    "src.ui.pages.vpn",
+    "src.ui.pages.proxy_share",
     "src.ui.pages.monitor",
     "src.ui.pages.blockcheck",
     "src.ui.pages.updates",
     "src.ui.pages.settings",
 )
-HIDDEN_IMPORTS = (*PAGE_MODULES, "PySide6.QtMultimedia", "PySide6.QtNetwork")
+HIDDEN_IMPORTS = (*PAGE_MODULES, "qrcode", "qrcode.image.pil", "PySide6.QtMultimedia",
+                  "PySide6.QtNetwork")
 
 
 def log(message: str) -> None:
