@@ -12,13 +12,19 @@ android {
         applicationId = "com.sharingconnect"
         minSdk = 29
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.2.0"
+        versionCode = 15
+        versionName = "1.2.2"
+        ndk {
+            // Go-ядро весит >100 МБ на ABI. Минимальный SDK 29 — все такие
+            // устройства ARM: берём только arm64, APK сжимаем (см. packaging).
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -28,7 +34,17 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
-    packagingOptions { jniLibs { useLegacyPackaging = true } }
+    packagingOptions {
+        // Ядро весит >100 МБ на ABI: оставляем только ARM (x86-библиотеки
+        // из AAR в APK не нужны) и включаем сжатие .so вместо хранения
+        // их несжатыми (useLegacyPackaging=false).
+        jniLibs {
+            // Сжимаем .so в APK (распаковываются при установке):
+            // несжатое Go-ядро весит 126 МБ, сжатое — вдвое-втрое меньше.
+            useLegacyPackaging = true
+            excludes += listOf("lib/x86/**", "lib/x86_64/**", "lib/mips/**", "lib/mips64/**")
+        }
+    }
 }
 
 dependencies {

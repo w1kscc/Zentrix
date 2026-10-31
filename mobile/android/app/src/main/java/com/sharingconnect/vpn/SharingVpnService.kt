@@ -211,9 +211,9 @@ class SharingVpnService : VpnService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
 
         val inet4 = options.inet4Address
-        while (inet4.hasNext()) builder.addAddress(inet4.next().address(), inet4.next().prefix())
+        while (inet4.hasNext()) inet4.next().let { builder.addAddress(it.address(), it.prefix()) }
         val inet6 = options.inet6Address
-        while (inet6.hasNext()) builder.addAddress(inet6.next().address(), inet6.next().prefix())
+        while (inet6.hasNext()) inet6.next().let { builder.addAddress(it.address(), it.prefix()) }
 
         if (options.autoRoute) {
             if (options.dnsMode.value != com.hiddify.core.libbox.Libbox.DNSModeDisabled) {

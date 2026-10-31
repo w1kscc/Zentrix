@@ -20,8 +20,8 @@ import kotlin.concurrent.thread
 
 /**
  * Выбор приложений: split tunneling (разрешённые/запрещённые) и правила
- * брандмауэра. Сканируются ВСЕ установленные приложения;
- * по нажатию кнопки «Найти приложения».
+ * брандмауэра. Сканируются ВСЕ установленные приложения — сразу при открытии,
+ * с постоянным поиском по названию и имени пакета.
  */
 class AppPickerActivity : Activity() {
 
@@ -32,10 +32,9 @@ class AppPickerActivity : Activity() {
     private var apps: List<Pair<String, String>> = emptyList()
     private var query: String = ""
 
-    private lateinit var findButton: Button
-    private lateinit var searchField: EditText
     private lateinit var progress: ProgressBar
     private lateinit var statusLabel: TextView
+    private lateinit var searchField: EditText
     private lateinit var scroll: ScrollView
     private lateinit var listLayout: LinearLayout
     private lateinit var saveButton: Button
@@ -64,15 +63,10 @@ class AppPickerActivity : Activity() {
             textSize = 18f
             setPadding(0, 0, 0, 16)
         })
-        findButton = Button(this).apply {
-            text = "Найти приложения"
-            setOnClickListener { startSearch() }
-        }
         progress = ProgressBar(this).apply { visibility = View.GONE }
-        statusLabel = TextView(this).apply { text = "Нажмите «Найти приложения» для сканирования" }
+        statusLabel = TextView(this).apply { text = "Ищу установленные приложения…" }
         searchField = EditText(this).apply {
             hint = "Поиск: название или пакет…"
-            visibility = View.GONE
             setSingleLine(true)
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -102,7 +96,6 @@ class AppPickerActivity : Activity() {
                 finish()
             }
         }
-        layout.addView(findButton)
         layout.addView(progress)
         layout.addView(statusLabel)
         layout.addView(searchField)
@@ -110,6 +103,7 @@ class AppPickerActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         layout.addView(saveButton)
         setContentView(layout)
+        startSearch()
     }
 
 
@@ -138,11 +132,9 @@ class AppPickerActivity : Activity() {
     }
 
     private fun startSearch() {
-        findButton.isEnabled = false
         progress.visibility = View.VISIBLE
         statusLabel.text = "Ищу установленные приложения…"
         scroll.visibility = View.GONE
-        searchField.visibility = View.GONE
         listLayout.removeAllViews()
         saveButton.isEnabled = false
 
@@ -162,7 +154,6 @@ class AppPickerActivity : Activity() {
             }.getOrDefault(emptyList())
             runOnUiThread {
                 progress.visibility = View.GONE
-                findButton.isEnabled = true
                 if (apps.isEmpty()) {
                     statusLabel.text = "Установленные приложения не найдены"
                     return@runOnUiThread
