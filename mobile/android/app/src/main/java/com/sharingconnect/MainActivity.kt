@@ -40,7 +40,7 @@ import com.sharingconnect.data.SettingsStore
 import com.sharingconnect.net.ConnectionTester
 import com.sharingconnect.net.ReleaseInfo
 import com.sharingconnect.net.ReleaseChecker
-import com.sharingconnect.ui.LogScreen
+import com.sharingconnect.ui.TestScreen
 import com.sharingconnect.ui.ProfileEditorScreen
 import com.sharingconnect.ui.ProxyScreen
 import com.sharingconnect.ui.SettingsScreen
@@ -137,7 +137,7 @@ class MainActivity : ComponentActivity() {
                     )
                     NavigationBarItem(
                         selected = tab == 1, onClick = { tab = 1 },
-                        icon = { Icon(Icons.Filled.List, null) }, label = { Text("Журнал") },
+                        icon = { Icon(Icons.Filled.List, null) }, label = { Text("Тест") },
                     )
                     NavigationBarItem(
                         selected = tab == 2, onClick = { tab = 2 },
@@ -173,7 +173,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                    1 -> LogScreen()
+                    1 -> TestScreen(settings = settings)
                     2 -> SettingsScreen(
                         settings = settings,
                         onOpenApps = ::openAppPicker,

@@ -60,6 +60,9 @@ import com.sharingconnect.BuildConfig
 import com.sharingconnect.data.SettingsStore
 import com.sharingconnect.vpn.LogRepo
 import com.sharingconnect.net.ReleaseChecker
+import com.sharingconnect.net.SpeedTestResult
+import com.sharingconnect.net.SpeedTest
+import kotlin.concurrent.thread
 import com.sharingconnect.net.ReleaseInfo
 import com.sharingconnect.vpn.VpnState
 
@@ -381,27 +384,127 @@ private fun FieldLabel(text: String) {
     Spacer(Modifier.height(4.dp))
 }
 
-/** Экран «Журнал». */
+/** Экран «Тест»: скорость входящего/исходящего потока + журнал с копированием. */
 @Composable
-fun LogScreen() {
-    val lines by LogRepo.live.collectAsState()
+fun TestScreen(settings: SettingsStore) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val logLines by LogRepo.live.collectAsState()
+    var testing by remember { mutableStateOf(false) }
+    var down by remember { mutableStateOf<Double?>(null) }
+    var up by remember { mutableStateOf<Double?>(null) }
+    var progress by remember { mutableStateOf(0f) }
+    var phase by remember { mutableStateOf("") }
+
+    val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    fun runTest() {
+        val proxy = settings.proxy
+        if (!proxy.isValid) {
+            Toast.makeText(context, "Сначала настройте профиль во вкладке «Прокси»", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (testing) return
+        testing = true
+        down = null; up = null; progress = 0f; phase = "Входящий поток…"
+        LogRepo.log("Тест скорости: запуск (${proxy.uri})")
+        thread {
+            val result = runCatching {
+                val d = SpeedTest.measureDown(proxy.host, proxy.port, proxy.protocol) { value ->
+                    mainHandler.post { down = value }
+                }
+                mainHandler.post {
+                    phase = "Исходящий поток…"
+                    LogRepo.log(d?.let { "Входящий: $it Мбит/с" } ?: "Входящий: не удалось измерить")
+                }
+                val u = SpeedTest.measureUp(proxy.host, proxy.port, proxy.protocol) { value ->
+                    mainHandler.post { up = value }
+                }
+                mainHandler.post {
+                    LogRepo.log(u?.let { "Исходящий: $it Мбит/с" } ?: "Исходящий: не удалось измерить")
+                }
+                SpeedTestResult(d, u)
+            }.getOrElse {
+                LogRepo.log("Тест скорости: ошибка — ${it.message}")
+                SpeedTestResult(null, null, it.message)
+            }
+            mainHandler.post {
+                testing = false
+                phase = if (result.error != null) "Ошибка: ${result.error}" else ""
+                progress = 1f
+                val text = "Тест завершён: ↓ ${result.downMbps ?: "—"} · ↑ ${result.upMbps ?: "—"} Мбит/с"
+                Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     Column(
         Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Журнал", color = ZentrixColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
-        GlassCard(Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (lines.isEmpty()) {
-                    Text("Журнал пуст", color = ZentrixColors.Muted, fontSize = 13.sp)
-                }
-                lines.reversed().forEach { line ->
-                    Text(line, color = ZentrixColors.Muted, fontSize = 12.sp, lineHeight = 16.sp)
+        Text("Тест потока", color = ZentrixColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        GlassCard {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatColumn("ВХОДЯЩИЙ", down, Modifier.weight(1f))
+                StatColumn("ИСХОДЯЩИЙ", up, Modifier.weight(1f))
+            }
+            if (phase.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(phase, color = ZentrixColors.Muted, fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+            PrimaryButton(
+                text = if (testing) "Идёт тест…" else "Запустить тест",
+                onClick = ::runTest,
+                enabled = !testing,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Через прокси ПК скачивается и отправляется тестовый трафик (Cloudflare).",
+                color = ZentrixColors.Muted, fontSize = 11.5.sp,
+            )
+        }
+
+        GlassCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Журнал", color = ZentrixColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                GhostButton(
+                    text = "Копировать всё",
+                    onClick = {
+                        val text = logLines.joinToString("\n")
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Sharing Connect log", text))
+                        Toast.makeText(context, "Журнал скопирован", Toast.LENGTH_SHORT).show()
+                    },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            if (logLines.isEmpty()) {
+                Text("Журнал пуст", color = ZentrixColors.Muted, fontSize = 12.5.sp)
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    logLines.reversed().forEach { line ->
+                        Text(line, color = ZentrixColors.Muted, fontSize = 11.5.sp, lineHeight = 15.sp)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StatColumn(caption: String, value: Double?, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(caption, color = ZentrixColors.Muted, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+        Text(
+            value?.let { "$it Мбит/с" } ?: "—",
+            color = ZentrixColors.Text,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.ExtraBold,
+        )
     }
 }
 

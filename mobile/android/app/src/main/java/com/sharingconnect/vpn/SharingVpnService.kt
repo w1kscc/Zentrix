@@ -88,6 +88,15 @@ class SharingVpnService : VpnService() {
             return null
         }
 
+        // tun2socks — синглтон: дожидаемся полной остановки прошлого туннеля.
+        if (Tun2Socks.isRunning()) {
+            Tun2Socks.terminate()
+            var waited = 0
+            while (Tun2Socks.isRunning() && waited < 3000) {
+                Thread.sleep(100)
+                waited += 100
+            }
+        }
         val configFile = writeTun2SocksConfig(config)
         LogRepo.log("Подключение к ${config.uri}…")
         tunnelThread = Thread {
@@ -123,6 +132,7 @@ class SharingVpnService : VpnService() {
     private fun stopTunnel(quiet: Boolean = false) {
         VpnState.set(false)
         runCatching { Tun2Socks.terminate() }
+        tunnelThread?.join(3000)   // дождаться выхода нативного потока
         tunnelThread?.interrupt()
         tunnelThread = null
         if (!quiet) {
