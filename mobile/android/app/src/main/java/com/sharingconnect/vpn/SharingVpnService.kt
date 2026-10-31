@@ -97,12 +97,29 @@ class SharingVpnService : VpnService() {
                 waited += 100
             }
         }
+        // tun2socks — синглтон: полностью останавливаем прошлый туннель и
+        // дожидаемся, пока нативный код подтвердит остановку.
+        if (Tun2Socks.isRunning()) {
+            LogRepo.log("Останавливаю предыдущий туннель…")
+            Tun2Socks.terminate()
+            var waited = 0
+            while (Tun2Socks.isRunning() && waited < 5000) {
+                Thread.sleep(100)
+                waited += 100
+            }
+            if (Tun2Socks.isRunning()) {
+                LogRepo.log("Не удалось остановить предыдущий туннель — попробуйте ещё раз")
+                return null
+            }
+        }
         val configFile = writeTun2SocksConfig(config)
         LogRepo.log("Подключение к ${config.uri}…")
         tunnelThread = Thread {
             val started = Tun2Socks.start(configFile, tunFd)
             if (!started) LogRepo.log("tun2socks не запустился")
+            VpnState.set(false)
             LogRepo.log("Туннель завершён")
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }.also { it.start() }
         VpnState.set(true)
@@ -131,9 +148,15 @@ class SharingVpnService : VpnService() {
 
     private fun stopTunnel(quiet: Boolean = false) {
         VpnState.set(false)
-        runCatching { Tun2Socks.terminate() }
-        tunnelThread?.join(3000)   // дождаться выхода нативного потока
-        tunnelThread?.interrupt()
+        if (Tun2Socks.isRunning()) {
+            runCatching { Tun2Socks.terminate() }
+            var waited = 0
+            while (Tun2Socks.isRunning() && waited < 5000) {
+                Thread.sleep(100)
+                waited += 100
+            }
+        }
+        tunnelThread?.join(2000)
         tunnelThread = null
         if (!quiet) {
             LogRepo.log("Отключено")
