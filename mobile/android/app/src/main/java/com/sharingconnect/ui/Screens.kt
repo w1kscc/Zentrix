@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.widget.Toast
 import com.sharingconnect.data.ProxyConfig
+import com.sharingconnect.BuildConfig
 import com.sharingconnect.data.SettingsStore
 import com.sharingconnect.vpn.LogRepo
 import com.sharingconnect.net.ReleaseChecker
@@ -110,9 +111,11 @@ fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Bool
 }
 
 @Composable
-fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+                  enabled: Boolean = true) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
@@ -375,6 +378,7 @@ fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, 
             Text("Версия", color = ZentrixColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(8.dp))
             var checking by remember { mutableStateOf(false) }
+            var hasUpdate by remember { mutableStateOf(false) }
             var apkUrl by remember { mutableStateOf<String?>(null) }
             var apkVersion by remember { mutableStateOf<String?>(null) }
             val context = androidx.compose.ui.platform.LocalContext.current
@@ -387,6 +391,8 @@ fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, 
                             checking = false
                             apkUrl = release?.apkUrl
                             apkVersion = release?.version
+                            hasUpdate = release != null &&
+                                ReleaseChecker.isNewer(BuildConfig.VERSION_NAME, release.version)
                             if (release == null) {
                                 Toast.makeText(context, "Не удалось связаться с GitHub", Toast.LENGTH_SHORT).show()
                             }
@@ -398,31 +404,32 @@ fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, 
             apkVersion?.let { version ->
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Актуальная версия APK: $version",
-                    color = ZentrixColors.Muted,
+                    if (hasUpdate) "Доступна новая версия APK: $version"
+                    else "У вас актуальная версия ($version)",
+                    color = if (hasUpdate) ZentrixColors.Success else ZentrixColors.Muted,
                     fontSize = 12.5.sp,
                 )
             }
-            if (apkUrl != null) {
-                Spacer(Modifier.height(6.dp))
-                PrimaryButton(
-                    text = "Загрузить актуальную версию APK",
-                    onClick = {
-                        val url = apkUrl ?: return@PrimaryButton
-                        runCatching {
-                            context.startActivity(
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse(url),
-                                )
+            Spacer(Modifier.height(6.dp))
+            // Кнопка активна только когда найдена версия новее установленной.
+            PrimaryButton(
+                text = if (hasUpdate) "Загрузить актуальную версию APK" else "Загрузить актуальную версию APK (нет обновлений)",
+                onClick = {
+                    val url = apkUrl ?: return@PrimaryButton
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(url),
                             )
-                        }.onFailure {
-                            Toast.makeText(context, "Откройте ссылку в браузере: $url", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+                        )
+                    }.onFailure {
+                        Toast.makeText(context, "Откройте ссылку в браузере: $url", Toast.LENGTH_LONG).show()
+                    }
+                },
+                enabled = hasUpdate,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         Spacer(Modifier.height(24.dp))
     }

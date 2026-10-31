@@ -17,7 +17,7 @@ import kotlin.concurrent.thread
 
 /**
  * Выбор приложений: split tunneling (разрешённые/запрещённые) и правила
- * брандмауэра. Список установленных (не системных) приложений ищется
+ * брандмауэра. Сканируются ВСЕ установленные приложения;
  * по нажатию кнопки «Найти приложения».
  */
 class AppPickerActivity : Activity() {
@@ -103,9 +103,13 @@ class AppPickerActivity : Activity() {
             val apps: List<Pair<String, String>> = runCatching {
                 pm.getInstalledApplications(PackageManager.GET_META_DATA)
                     .asSequence()
-                    .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }  // без системных
                     .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
-                    .map { it.loadLabel(pm).toString() to it.packageName }
+                    .map {
+                        val label = it.loadLabel(pm).toString()
+                        val mark = if (it.flags and ApplicationInfo.FLAG_SYSTEM != 0)
+                            " · системное" else ""
+                        "$label$mark" to it.packageName
+                    }
                     .sortedBy { it.first.lowercase() }
                     .toList()
             }.getOrDefault(emptyList())
