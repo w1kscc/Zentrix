@@ -2,14 +2,19 @@
    Интерактивное GUI-демо Zentrix на сайте. Все данные (IP, города) скрыты.
    ========================================================================== */
 
-.app-demo { background: #0a0f1a; }
-
-.app-demo .win { position: relative; }
+.app-demo {
+  background:
+    radial-gradient(620px 300px at 82% -6%, rgba(124, 92, 255, 0.20), transparent 60%),
+    radial-gradient(520px 280px at 8% 108%, rgba(34, 211, 238, 0.10), transparent 60%),
+    #080b12;
+}
+.app-demo .win { background: rgba(8, 11, 18, 0.6); border-bottom-color: rgba(255, 255, 255, 0.09); }
 .app-demo .win .pill {
   position: absolute; right: 12px; top: 8px;
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px; color: var(--muted);
-  border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 999px; padding: 2px 10px;
+  background: rgba(255, 255, 255, 0.03);
 }
 .app-demo .win .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 
@@ -17,15 +22,15 @@
 
 /* ------------------------------------------------------------- sidebar */
 .app-nav {
-  border-right: 1px solid var(--line);
-  background: rgba(7, 10, 18, 0.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(8, 11, 18, 0.55);
   padding: 12px 8px;
   display: flex; flex-direction: column; gap: 3px;
 }
 .app-nav button {
   all: unset; cursor: pointer;
   display: flex; align-items: center; gap: 9px;
-  padding: 8px 11px; border-radius: 10px;
+  padding: 9px 11px; border-radius: 12px;
   color: var(--muted); font-size: 13px; font-weight: 600;
   font-family: inherit;
 }
@@ -34,11 +39,11 @@
   width: 16px; flex: none; text-align: center;
   font-size: 13px; line-height: 1;
 }
-.app-nav button:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.app-nav button:hover { background: rgba(255, 255, 255, 0.05); color: var(--text); }
 .app-nav button.on {
   background: rgba(124, 92, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(124, 92, 255, 0.35), inset 3px 0 0 var(--accent);
   color: var(--text);
-  box-shadow: inset 2.5px 0 0 var(--accent);
 }
 .app-nav button em {
   font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: .4px;
@@ -72,10 +77,10 @@
 @media (max-width: 620px) { .a-cards.two { grid-template-columns: 1fr; } }
 
 .a-card {
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.035);
-  border-radius: 13px;
-  padding: 12px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 14px;
+  padding: 13px 14px;
 }
 .a-card h5 {
   margin: 0 0 8px; font-size: 12.5px; font-weight: 700;
@@ -131,12 +136,12 @@
 .a-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
 @media (max-width: 560px) { .a-stats { grid-template-columns: 1fr 1fr; } }
 .a-stat {
-  border: 1px solid var(--line); border-radius: 13px;
-  background: rgba(255, 255, 255, 0.035); padding: 11px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 14px;
+  background: rgba(255, 255, 255, 0.045); padding: 12px 14px;
 }
 .a-stat .cap { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .5px; }
-.a-stat .val { font-size: 17px; font-weight: 800; margin-top: 3px; }
-.a-stat .val.ok { color: var(--green); }
+.a-stat .val { font-size: 18px; font-weight: 800; margin-top: 3px; }
+.a-stat .val.ok { color: #3ddc97; }
 .a-stat .det { color: var(--muted); font-size: 10.5px; margin-top: 2px; }
 
 .a-chart {
@@ -190,3 +195,43 @@
   display: flex; gap: 8px; align-items: center;
 }
 .demo-note b { color: var(--text); }
+
+/* ------------------------------------------------- полноширинное демо в hero */
+.hero.stacked {
+  grid-template-columns: 1fr;
+  padding-bottom: 24px;
+  gap: 0;
+}
+.hero.stacked > div:first-child { max-width: 780px; }
+.hero-cta {
+  margin: 22px auto 0;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.hero-cta .meta-line { margin: 0 0 0 12px; }
+@media (max-width: 700px) {
+  .hero-cta .meta-line { margin: 6px 0 0; width: 100%; justify-content: center; }
+}
+.hero.stacked .app-demo { max-width: 980px; margin: 34px auto 0; }
+.hero.stacked .app { grid-template-columns: 168px 1fr; min-height: 560px; }
+.hero.stacked .app-body { padding: 20px 22px 22px; }
+.hero.stacked .a-chart svg { height: 170px; }
+
+/* ------------------------------------------- центр текста и бейдж версии */
+.hero.stacked > div:first-child {
+  margin: 0 auto;
+  text-align: center;
+}
+.hero.stacked .lede { margin-left: auto; margin-right: auto; }
+.hero.stacked .lede code { white-space: nowrap; }
+
+.ver-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: 999px;
+  border: 1px solid rgba(124, 92, 255, 0.45);
+  background: rgba(124, 92, 255, 0.12);
+  color: #c9bfff; font-size: 12.5px; font-weight: 700;
+}
+.ver-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+@media (max-width: 800px) { .ver-pill { display: none; } }
