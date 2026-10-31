@@ -103,7 +103,6 @@ class AppPickerActivity : Activity() {
             val apps: List<Pair<String, String>> = runCatching {
                 pm.getInstalledApplications(PackageManager.GET_META_DATA)
                     .asSequence()
-                    .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
                     .map {
                         val label = it.loadLabel(pm).toString()
                         val mark = if (it.flags and ApplicationInfo.FLAG_SYSTEM != 0)

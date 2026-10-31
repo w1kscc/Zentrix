@@ -1,5 +1,10 @@
 package com.sharingconnect.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +21,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,7 +47,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -139,7 +153,7 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
     }
 }
 
-/** Экран «Прокси»: профиль подключения, статус, подключение. */
+/** Экран «Прокси»: большая круглая кнопка в центре, как на ПК. */
 @Composable
 fun ProxyScreen(
     settings: SettingsStore,
@@ -150,50 +164,140 @@ fun ProxyScreen(
 ) {
     val connected by VpnState.connected.collectAsState()
     val proxy = remember(profileVersion) { settings.proxy }
+    val canConnect = proxy.isValid
 
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        GlassCard(title = "Профиль подключения") {
+        Spacer(Modifier.height(8.dp))
+
+        // --- большая кнопка в центре ---
+        BigConnectButton(connected = connected, enabled = canConnect, onClick = onToggle)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            when {
+                !canConnect -> "Профиль не настроен"
+                connected -> "ПОДКЛЮЧЕНО"
+                else -> "ОТКЛЮЧЕНО"
+            },
+            color = when {
+                !canConnect -> ZentrixColors.Muted
+                connected -> ZentrixColors.Success
+                else -> ZentrixColors.Muted
+            },
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.2.sp,
+        )
+        Spacer(Modifier.height(18.dp))
+
+        // --- профиль ---
+        GlassCard(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (proxy.isValid) proxy.uri else "Профиль не настроен",
-                    color = if (proxy.isValid) ZentrixColors.Text else ZentrixColors.Muted,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    if (connected) "ПОДКЛЮЧЕНО" else "ОТКЛЮЧЕНО",
-                    color = if (connected) ZentrixColors.Success else ZentrixColors.Muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                )
+                Column(Modifier.weight(1f)) {
+                    Text("Профиль подключения", color = ZentrixColors.Muted, fontSize = 11.5.sp)
+                    Text(
+                        if (canConnect) proxy.uri else "Не настроен",
+                        color = if (canConnect) ZentrixColors.Text else ZentrixColors.Muted,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PrimaryButton(
-                    text = if (connected) "Отключить" else "Подключить",
-                    onClick = onToggle,
-                    modifier = Modifier.weight(1f),
-                )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GhostButton(text = "Сканировать QR", onClick = onScanQr, modifier = Modifier.weight(1f))
+                GhostButton(text = "Изменить профиль", onClick = onEditProfile, modifier = Modifier.weight(1f))
             }
-            Spacer(Modifier.height(8.dp))
-            GhostButton(text = "Изменить профиль", onClick = onEditProfile, modifier = Modifier.fillMaxWidth())
         }
 
-        GlassCard(title = "Как это работает") {
+        Spacer(Modifier.height(12.dp))
+        GlassCard(title = "Как это работает", modifier = Modifier.fillMaxWidth()) {
             Text(
-                "3. Нажмите «Подключить» — трафик приложений пойдёт через ПК.",
+                "1. Во вкладке «Шеринг» PC-версии Zentrix включите раздачу." + chr(10) +
+                    "2. Отсканируйте QR-код этим приложением или заполните профиль вручную." + chr(10) +
+                    "3. Нажмите большую кнопку — трафик приложений пойдёт через ПК.",
                 color = ZentrixColors.Muted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
+            )
+        }
+    }
+}
+
+private fun chr(code: Int): String = code.toChar().toString()
+
+/**
+ * Большая круглая кнопка подключения: концентрические кольца с градиентом,
+ * пульсирующее свечение в подключённом состоянии — как hero-кнопка ПК-версии.
+ */
+@Composable
+fun BigConnectButton(connected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val glow by pulse.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.65f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
+        label = "glow",
+    )
+    val ringColor = if (connected) ZentrixColors.Accent2 else ZentrixColors.Muted.copy(alpha = 0.35f)
+    val glowAlpha = if (connected) glow else 0.10f
+
+    Box(
+        modifier = Modifier.size(240.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        // внешнее кольцо — мягкое свечение
+        Box(
+            Modifier
+                .size(240.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        listOf(ZentrixColors.Accent.copy(alpha = glowAlpha), Color.Transparent),
+                    ),
+                ),
+        )
+        // среднее кольцо
+        Box(
+            Modifier
+                .size(190.dp)
+                .clip(CircleShape)
+                .background(Color.Transparent)
+                .border(1.5.dp, ringColor.copy(alpha = if (connected) glowAlpha + 0.25f else 0.35f), CircleShape),
+        )
+        // внутреннее кольцо
+        Box(
+            Modifier
+                .size(150.dp)
+                .clip(CircleShape)
+                .background(Color.Transparent)
+                .border(1.dp, ringColor.copy(alpha = 0.55f), CircleShape),
+        )
+        // сама кнопка
+        Box(
+            modifier = Modifier
+                .size(116.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        if (connected) listOf(ZentrixColors.Accent2, Color(0xFF3B82F6))
+                        else listOf(ZentrixColors.Accent, Color(0xFF4C63E6)),
+                    ),
+                )
+                .border(2.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (connected) Icons.Filled.Check else Icons.Filled.Shield,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(46.dp),
             )
         }
     }
