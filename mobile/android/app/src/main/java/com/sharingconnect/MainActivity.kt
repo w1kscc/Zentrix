@@ -223,8 +223,10 @@ class MainActivity : ComponentActivity() {
     private fun requestVpnAndStart() {
         val intent = VpnService.prepare(this)
         if (intent == null) {
-            vpnPermission.launch(Intent(this, SharingVpnService::class.java))
+            // Разрешение уже выдано — запускаем СЛУЖБУ (не через activity-launcher!).
+            startForegroundService(Intent(this, SharingVpnService::class.java))
         } else {
+            // Системный диалог запроса разрешения VPN.
             vpnPermission.launch(intent)
         }
     }
