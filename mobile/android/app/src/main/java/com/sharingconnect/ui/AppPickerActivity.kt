@@ -5,67 +5,65 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
+import android.widget.TextView
 import com.sharingconnect.data.SettingsStore
+import kotlin.concurrent.thread
 
 /**
  * Выбор приложений: split tunneling (разрешённые/запрещённые) и правила
- * брандмауэра. Все функции бесплатны.
+ * брандмауэра. Установленные приложения ищутся автоматически в фоне,
+ * системные исключаются.
  */
 class AppPickerActivity : Activity() {
 
+    private lateinit var settings: SettingsStore
+    private lateinit var kind: String
+    private val selected = mutableSetOf<String>()
+
+    private lateinit var progress: ProgressBar
+    private lateinit var statusLabel: TextView
+    private lateinit var scroll: ScrollView
+    private lateinit var listLayout: LinearLayout
+    private lateinit var saveButton: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val kind = intent.getStringExtra("kind") ?: "allowed"
-        val settings = SettingsStore(this)
-        val pm = packageManager
-        val installed = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
-            .sortedBy { it.loadLabel(pm).toString().lowercase() }
-
-        val selected = when (kind) {
-            "allowed" -> settings.allowedApps().toMutableSet()
-            "disallowed" -> settings.disallowedApps().toMutableSet()
-            else -> settings.firewallRules().filter { it.second }.map { it.first }.toMutableSet()
+        kind = intent.getStringExtra("kind") ?: "allowed"
+        settings = SettingsStore(this)
+        selected.clear()
+        when (kind) {
+            "allowed" -> selected.addAll(settings.allowedApps())
+            "disallowed" -> selected.addAll(settings.disallowedApps())
+            else -> selected.addAll(settings.firewallRules().filter { it.second }.map { it.first })
         }
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 48, 48, 48)
+            setPadding(48, 48, 48, 32)
         }
-        layout.addView(android.widget.TextView(this).apply {
+        layout.addView(TextView(this).apply {
             text = when (kind) {
                 "allowed" -> "Разрешённые приложения (пусто = все)"
                 "disallowed" -> "Запрещённые приложения"
                 else -> "Брандмауэр: блокировать доступ в интернет"
             }
             textSize = 18f
-            setPadding(0, 0, 0, 32)
+            setPadding(0, 0, 0, 16)
         })
-
-        val boxes = mutableListOf<Pair<String, CheckBox>>()
-        val scroll = ScrollView(this)
-        val listLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        installed.forEach { app: ApplicationInfo ->
-            val label = app.loadLabel(pm).toString()
-            val box = CheckBox(this).apply {
-                text = "$label (${app.packageName})"
-                isChecked = app.packageName in selected
-                setOnCheckedChangeListener { _, checked ->
-                    if (checked) selected.add(app.packageName) else selected.remove(app.packageName)
-                }
-            }
-            boxes.add(app.packageName to box)
-            listLayout.addView(box)
-        }
+        progress = ProgressBar(this)
+        statusLabel = TextView(this).apply { text = "Ищу установленные приложения…" }
+        scroll = ScrollView(this).apply { visibility = View.GONE }
+        listLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(listLayout)
-        layout.addView(scroll)
-
-        layout.addView(Button(this).apply {
+        saveButton = Button(this).apply {
             text = "Сохранить"
+            isEnabled = false
             setOnClickListener {
                 when (kind) {
                     "allowed" -> settings.setAllowedApps(selected)
@@ -78,7 +76,47 @@ class AppPickerActivity : Activity() {
                 setResult(RESULT_OK)
                 finish()
             }
-        })
+        }
+        layout.addView(progress)
+        layout.addView(statusLabel)
+        layout.addView(scroll)
+        layout.addView(saveButton)
         setContentView(layout)
+
+        loadApps()
+    }
+
+    private fun loadApps() {
+        val pm = packageManager
+        thread {
+            val apps: List<Pair<String, String>> = runCatching {
+                pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                    .asSequence()
+                    .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }  // без системных
+                    .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
+                    .map { it.loadLabel(pm).toString() to it.packageName }
+                    .sortedBy { it.first.lowercase() }
+                    .toList()
+            }.getOrDefault(emptyList())
+            runOnUiThread {
+                progress.visibility = View.GONE
+                if (apps.isEmpty()) {
+                    statusLabel.text = "Установленные приложения не найдены"
+                    return@runOnUiThread
+                }
+                statusLabel.text = "Найдено приложений: ${apps.size}"
+                scroll.visibility = View.VISIBLE
+                saveButton.isEnabled = true
+                apps.forEach { (label, pkg) ->
+                    listLayout.addView(CheckBox(this).apply {
+                        text = "$label\n$pkg"
+                        isChecked = pkg in selected
+                        setOnCheckedChangeListener { _, checked ->
+                            if (checked) selected.add(pkg) else selected.remove(pkg)
+                        }
+                    })
+                }
+            }
+        }
     }
 }

@@ -33,22 +33,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.google.zxing.integration.android.IntentIntegrator
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.sharingconnect.data.ProxyConfig
 import com.sharingconnect.data.SettingsStore
 import com.sharingconnect.net.ConnectionTester
+import com.sharingconnect.net.ReleaseInfo
 import com.sharingconnect.net.ReleaseChecker
 import com.sharingconnect.ui.LogScreen
+import com.sharingconnect.ui.ProfileEditorScreen
 import com.sharingconnect.ui.ProxyScreen
 import com.sharingconnect.ui.SettingsScreen
 import com.sharingconnect.ui.ZentrixColors
 import com.sharingconnect.vpn.LogRepo
 import com.sharingconnect.vpn.SharingVpnService
+import com.sharingconnect.vpn.Tun2Socks
 import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var settings: SettingsStore
+    private var profileVersion by mutableStateOf(0)  // сигнал перерисовать профиль
 
     private val vpnPermission =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -60,25 +65,32 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    private val qrScanner =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val contents = IntentIntegrator.parseActivityResult(result.resultCode, result.data)?.contents
-            if (contents != null) {
-                ProxyConfig.parse(contents)?.let { parsed ->
-                    settings.proxy = parsed
-                    LogRepo.log("Прокси из QR: ${parsed.uri}")
-                    Toast.makeText(this, "Прокси сохранён: ${parsed.uri}", Toast.LENGTH_SHORT).show()
-                } ?: run {
-                    LogRepo.log("QR не распознан: ${contents.take(40)}")
-                    Toast.makeText(this, "QR не содержит адрес прокси Zentrix", Toast.LENGTH_SHORT).show()
-                }
-            }
+    /** QR-сканер через ScanContract — результат приходит гарантированно. */
+    private val qrScanner = registerForActivityResult(ScanContract()) { result ->
+        val contents = result.contents
+        if (contents == null) {
+            LogRepo.log("Сканирование отменено")
+            return@registerForActivityResult
         }
+        val parsed = ProxyConfig.parse(contents)
+        if (parsed == null) {
+            LogRepo.log("QR не содержит адрес прокси: ${contents.take(60)}")
+            Toast.makeText(this, "Это не QR из «Шеринга» Zentrix", Toast.LENGTH_LONG).show()
+            return@registerForActivityResult
+        }
+        settings.proxy = parsed
+        profileVersion++
+        LogRepo.log("Прокси из QR: ${parsed.uri}")
+        Toast.makeText(this, "Сохранено: ${parsed.uri}", Toast.LENGTH_LONG).show()
+    }
+
+    private val appPicker =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = SettingsStore(this)
-        // QR из внешнего сканера или share-интент: socks5://host:port
+        // Приём адреса из внешнего сканера / share-интента
         intent?.getStringExtra(Intent.EXTRA_TEXT)?.let { raw ->
             ProxyConfig.parse(raw)?.let { settings.proxy = it }
         }
@@ -113,7 +125,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MainLayout() {
         var tab by remember { mutableStateOf(0) }
-        val logLines by LogRepo.live.collectAsState()
+        var editingProfile by remember { mutableStateOf(false) }
 
         Scaffold(
             containerColor = ZentrixColors.Bg,
@@ -141,12 +153,26 @@ class MainActivity : ComponentActivity() {
                     .padding(padding),
             ) {
                 when (tab) {
-                    0 -> ProxyScreen(
-                        settings = settings,
-                        connected = false, // статус читается из службы в реальной сборке
-                        onToggle = ::toggleConnection,
-                        onScanQr = ::scanQr,
-                    )
+                    0 -> {
+                        if (editingProfile) {
+                            ProfileEditorScreen(
+                                settings = settings,
+                                onSaved = {
+                                    profileVersion++
+                                    editingProfile = false
+                                },
+                                onCancelled = { editingProfile = false },
+                            )
+                        } else {
+                            ProxyScreen(
+                                settings = settings,
+                                profileVersion = profileVersion,
+                                onToggle = ::toggleConnection,
+                                onScanQr = ::scanQr,
+                                onEditProfile = { editingProfile = true },
+                            )
+                        }
+                    }
                     1 -> LogScreen()
                     2 -> SettingsScreen(
                         settings = settings,
@@ -158,11 +184,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** «Подключить» — только подключение, никаких QR. */
     private fun toggleConnection() {
         val config = settings.proxy
         if (!config.isValid) {
-            Toast.makeText(this, "Сначала отсканируйте QR из «Шеринга»", Toast.LENGTH_SHORT).show()
-            scanQr()
+            Toast.makeText(
+                this,
+                "Сначала сохраните профиль: отсканируйте QR или заполните вручную",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+        if (Tun2Socks.isRunning()) {
+            startService(
+                Intent(this, SharingVpnService::class.java)
+                    .setAction(SharingVpnService.ACTION_STOP)
+            )
             return
         }
         if (settings.testConnection) {
@@ -193,36 +230,35 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun scanQr() {
-        val integrator = IntentIntegrator(this)
-        integrator.setPrompt("Отсканируйте QR-код из вкладки «Шеринг» Zentrix")
-        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
-        integrator.setBeepEnabled(true)
-        integrator.initiateScan()
+        val options = ScanOptions()
+            .setPrompt("Наведите камеру на QR-код из вкладки «Шеринг» Zentrix")
+            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            .setBeepEnabled(true)
+            .setOrientationLocked(false)
+        qrScanner.launch(options)
     }
 
     private fun openAppPicker(kind: String) {
-        startActivity(
-            Intent(this, Class.forName("com.sharingconnect.ui.AppPickerActivity"))
-                .putExtra("kind", kind)
+        appPicker.launch(
+            Intent(this, com.sharingconnect.ui.AppPickerActivity::class.java).putExtra("kind", kind)
         )
     }
 
-    private fun checkRelease() {
+    private fun checkRelease(onResult: (ReleaseInfo?) -> Unit) {
         thread {
-            val current = BuildConfig.VERSION_NAME
             val outcome = runCatching { ReleaseChecker.fetchLatest() }
             runOnUiThread {
                 outcome.fold({ release ->
+                    val current = BuildConfig.VERSION_NAME
                     if (ReleaseChecker.isNewer(current, release.version)) {
-                        LogRepo.log("Доступна новая версия: ${release.version}")
-                        Toast.makeText(this, "Новая версия: ${release.version} — страница релиза открыта в README проекта", Toast.LENGTH_LONG).show()
+                        LogRepo.log("Доступна новая версия APK: ${release.version}")
                     } else {
                         LogRepo.log("Установлена актуальная версия ($current)")
-                        Toast.makeText(this, "У вас актуальная версия $current", Toast.LENGTH_SHORT).show()
                     }
+                    onResult(release)
                 }, { error ->
                     LogRepo.log("Проверка версии: ${error.message}")
-                    Toast.makeText(this, "Не удалось проверить версию", Toast.LENGTH_SHORT).show()
+                    onResult(null)
                 })
             }
         }

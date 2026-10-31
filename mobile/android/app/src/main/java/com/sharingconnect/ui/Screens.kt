@@ -23,6 +23,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -39,8 +40,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
+import com.sharingconnect.data.ProxyConfig
 import com.sharingconnect.data.SettingsStore
 import com.sharingconnect.vpn.LogRepo
+import com.sharingconnect.net.ReleaseChecker
+import com.sharingconnect.net.ReleaseInfo
+import com.sharingconnect.vpn.Tun2Socks
 
 /** Палитра PC-версии Zentrix. */
 object ZentrixColors {
@@ -130,9 +136,18 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
     }
 }
 
-/** Экран «Прокси»: статус, адрес из QR, подключение. */
+/** Экран «Прокси»: профиль подключения, статус, подключение. */
 @Composable
-fun ProxyScreen(settings: SettingsStore, connected: Boolean, onToggle: () -> Unit, onScanQr: () -> Unit) {
+fun ProxyScreen(
+    settings: SettingsStore,
+    profileVersion: Int,
+    onToggle: () -> Unit,
+    onScanQr: () -> Unit,
+    onEditProfile: () -> Unit,
+) {
+    var connected by remember { mutableStateOf(Tun2Socks.isRunning()) }
+    val proxy = remember(profileVersion) { settings.proxy }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -140,34 +155,123 @@ fun ProxyScreen(settings: SettingsStore, connected: Boolean, onToggle: () -> Uni
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        GlassCard(title = "Локальный шеринг") {
-            val proxy = settings.proxy
-            Text(
-                if (proxy.isValid) proxy.uri else "Отсканируйте QR-код из вкладки «Шеринг» PC-версии",
-                color = if (proxy.isValid) ZentrixColors.Text else ZentrixColors.Muted,
-                fontSize = 15.sp,
-            )
+        GlassCard(title = "Профиль подключения") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (proxy.isValid) proxy.uri else "Профиль не настроен",
+                    color = if (proxy.isValid) ZentrixColors.Text else ZentrixColors.Muted,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (connected) "ПОДКЛЮЧЕНО" else "ОТКЛЮЧЕНО",
+                    color = if (connected) ZentrixColors.Success else ZentrixColors.Muted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                )
+            }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PrimaryButton(
                     text = if (connected) "Отключить" else "Подключить",
-                    onClick = onToggle,
+                    onClick = { connected = Tun2Socks.isRunning(); onToggle() },
                     modifier = Modifier.weight(1f),
                 )
                 GhostButton(text = "Сканировать QR", onClick = onScanQr, modifier = Modifier.weight(1f))
             }
+            Spacer(Modifier.height(8.dp))
+            GhostButton(text = "Изменить профиль", onClick = onEditProfile, modifier = Modifier.fillMaxWidth())
         }
+
         GlassCard(title = "Как это работает") {
             Text(
-                "1. Во вкладке «Шеринг» PC-версии Zentrix включите раздачу.\n" +
-                    "2. Отсканируйте QR-код этим приложением.\n" +
-                    "3. Нажмите «Подключить» — трафик выбранных приложений пойдёт через ПК.",
+                "3. Нажмите «Подключить» — трафик приложений пойдёт через ПК.",
                 color = ZentrixColors.Muted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
             )
         }
     }
+}
+
+/** Экран профиля: имя/протокол/сервер/порт — как в референсах SuperProxy. */
+@Composable
+fun ProfileEditorScreen(settings: SettingsStore, onSaved: () -> Unit, onCancelled: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var protocol by remember { mutableStateOf(settings.proxy.protocol) }
+    var host by remember { mutableStateOf(settings.proxy.host) }
+    var port by remember { mutableStateOf(if (settings.proxy.port > 0) settings.proxy.port.toString() else "") }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        GlassCard(title = "Профиль") {
+            FieldLabel("Протокол")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("socks5" to "SOCKS5", "http" to "HTTP").forEach { (key, label) ->
+                    OutlinedButton(
+                        onClick = { protocol = key },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (protocol == key) ZentrixColors.Accent else ZentrixColors.Muted,
+                        ),
+                    ) { Text(label) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            FieldLabel("Сервер")
+            OutlinedTextField(
+                value = host,
+                onValueChange = { host = it },
+                placeholder = { Text("IP компьютера из «Шеринга»", color = ZentrixColors.Muted) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Spacer(Modifier.height(10.dp))
+            FieldLabel("Порт")
+            OutlinedTextField(
+                value = port,
+                onValueChange = { port = it.filter { char -> char.isDigit() } },
+                placeholder = { Text("10808", color = ZentrixColors.Muted) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PrimaryButton(
+                    text = "Сохранить",
+                    onClick = {
+                        val config = ProxyConfig(
+                            protocol = protocol,
+                            host = host.trim(),
+                            port = port.toIntOrNull() ?: 0,
+                        )
+                        if (config.isValid) {
+                            settings.proxy = config
+                            LogRepo.log("Профиль сохранён: ${config.uri}")
+                            Toast.makeText(context, "Сохранено: ${config.uri}", Toast.LENGTH_SHORT).show()
+                            onSaved()
+                        } else {
+                            Toast.makeText(context, "Заполните сервер и порт", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                GhostButton(text = "Отмена", onClick = onCancelled, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FieldLabel(text: String) {
+    Text(text, color = ZentrixColors.Muted, fontSize = 12.sp)
+    Spacer(Modifier.height(4.dp))
 }
 
 /** Экран «Журнал». */
@@ -196,7 +300,7 @@ fun LogScreen() {
 
 /** Экран «Настройки» — все функции бесплатны, PRO-замков нет. */
 @Composable
-fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, onUpdateCheck: () -> Unit) {
+fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, onUpdateCheck: ((ReleaseInfo?) -> Unit) -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -270,7 +374,55 @@ fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, 
         GlassCard {
             Text("Версия", color = ZentrixColors.Text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(8.dp))
-            GhostButton("Проверить актуальную версию", onClick = onUpdateCheck, modifier = Modifier.fillMaxWidth())
+            var checking by remember { mutableStateOf(false) }
+            var apkUrl by remember { mutableStateOf<String?>(null) }
+            var apkVersion by remember { mutableStateOf<String?>(null) }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            GhostButton(
+                text = if (checking) "Проверяю…" else "Проверить актуальную версию",
+                onClick = {
+                    if (!checking) {
+                        checking = true
+                        onUpdateCheck { release ->
+                            checking = false
+                            apkUrl = release?.apkUrl
+                            apkVersion = release?.version
+                            if (release == null) {
+                                Toast.makeText(context, "Не удалось связаться с GitHub", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            apkVersion?.let { version ->
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Актуальная версия APK: $version",
+                    color = ZentrixColors.Muted,
+                    fontSize = 12.5.sp,
+                )
+            }
+            if (apkUrl != null) {
+                Spacer(Modifier.height(6.dp))
+                PrimaryButton(
+                    text = "Загрузить актуальную версию APK",
+                    onClick = {
+                        val url = apkUrl ?: return@PrimaryButton
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(url),
+                                )
+                            )
+                        }.onFailure {
+                            Toast.makeText(context, "Откройте ссылку в браузере: $url", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         Spacer(Modifier.height(24.dp))
     }
