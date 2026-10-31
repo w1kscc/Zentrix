@@ -18,7 +18,7 @@
 }
 .app-demo .win .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 
-.app { display: grid; grid-template-columns: 148px 1fr; min-height: 460px; }
+.app { display: grid; grid-template-columns: 148px 1fr; height: 560px; }
 
 /* ------------------------------------------------------------- sidebar */
 .app-nav {
@@ -64,7 +64,7 @@
 }
 
 /* ------------------------------------------------------------- pages */
-.app-body { padding: 16px 18px 18px; overflow: hidden; }
+.app-body { padding: 16px 18px 18px; overflow-y: auto; }
 .app-body .page { display: none; }
 .app-body .page.on { display: block; }
 
@@ -214,7 +214,7 @@
   .hero-cta .meta-line { margin: 6px 0 0; width: 100%; justify-content: center; }
 }
 .hero.stacked .app-demo { max-width: 980px; margin: 34px auto 0; }
-.hero.stacked .app { grid-template-columns: 168px 1fr; min-height: 560px; }
+.hero.stacked .app { grid-template-columns: 168px 1fr; height: 620px; }
 .hero.stacked .app-body { padding: 20px 22px 22px; }
 .hero.stacked .a-chart svg { height: 170px; }
 
@@ -292,3 +292,7 @@
 .a-btn.sw.on { border-color: #fff; }
 .app-foot b { display: block; color: var(--green); font-size: 10.5px; font-weight: 700; letter-spacing: .6px; }
 .app-foot small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.app-body::-webkit-scrollbar { width: 8px; }
+.app-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 4px; }
+.app-body::-webkit-scrollbar-thumb:hover { background: rgba(124,92,255,.5); }
+.app-body::-webkit-scrollbar-track { background: transparent; }
