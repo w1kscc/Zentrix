@@ -77,14 +77,22 @@ class SharingVpnService : VpnService() {
             disallowed.forEach(builder::addDisallowedApplication)
         }
 
-        val tunFd = try {
-            builder.establish()?.detachFd()
-        } catch (error: Exception) {
-            LogRepo.log("Не удалось поднять VPN: ${error.message}")
-            return null
+        // Прошлый VPN-интерфейс может держаться, пока нативный поток
+        // прошлого туннеля не выйдет — ретраим establish до 5 раз.
+        var tunFd: Int? = null
+        for (attempt in 1..5) {
+            try {
+                tunFd = builder.establish()?.detachFd()
+            } catch (error: Exception) {
+                LogRepo.log("Ошибка VPN-интерфейса (попытка $attempt): ${error.message}")
+            }
+            if (tunFd != null) break
+            LogRepo.log("VPN-интерфейс занят прошлым туннелем, жду… (попытка $attempt)")
+            tunnelThread?.join(600)
+            Thread.sleep(200)
         }
         if (tunFd == null) {
-            LogRepo.log("VPN-разрешение не выдано системой")
+            LogRepo.log("Не удалось создать VPN-интерфейс за 5 попыток")
             return null
         }
 
@@ -156,7 +164,8 @@ class SharingVpnService : VpnService() {
                 waited += 100
             }
         }
-        tunnelThread?.join(2000)
+        tunnelThread?.join(5000)
+        if (tunnelThread?.isAlive == true) tunnelThread?.interrupt()
         tunnelThread = null
         if (!quiet) {
             LogRepo.log("Отключено")

@@ -5,9 +5,12 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -26,7 +29,11 @@ class AppPickerActivity : Activity() {
     private lateinit var kind: String
     private val selected = mutableSetOf<String>()
 
+    private var apps: List<Pair<String, String>> = emptyList()
+    private var query: String = ""
+
     private lateinit var findButton: Button
+    private lateinit var searchField: EditText
     private lateinit var progress: ProgressBar
     private lateinit var statusLabel: TextView
     private lateinit var scroll: ScrollView
@@ -63,6 +70,19 @@ class AppPickerActivity : Activity() {
         }
         progress = ProgressBar(this).apply { visibility = View.GONE }
         statusLabel = TextView(this).apply { text = "Нажмите «Найти приложения» для сканирования" }
+        searchField = EditText(this).apply {
+            hint = "Поиск: название или пакет…"
+            visibility = View.GONE
+            setSingleLine(true)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    query = s?.toString()?.trim()?.lowercase() ?: ""
+                    renderApps()
+                }
+            })
+        }
         scroll = ScrollView(this).apply { visibility = View.GONE }
         listLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(listLayout)
@@ -85,9 +105,35 @@ class AppPickerActivity : Activity() {
         layout.addView(findButton)
         layout.addView(progress)
         layout.addView(statusLabel)
+        layout.addView(searchField)
         layout.addView(scroll)
         layout.addView(saveButton)
         setContentView(layout)
+    }
+
+
+    /** Отрисовать список с учётом поискового запроса. */
+    private fun renderApps() {
+        listLayout.removeAllViews()
+        val filtered = if (query.isEmpty()) apps else apps.filter { (label, pkg) ->
+            label.lowercase().contains(query) || pkg.lowercase().contains(query)
+        }
+        if (filtered.isEmpty()) {
+            listLayout.addView(TextView(this).apply {
+                text = "Ничего не найдено"
+                setPadding(0, 24, 0, 24)
+            })
+            return
+        }
+        filtered.forEach { (label, pkg) ->
+            listLayout.addView(CheckBox(this).apply {
+                text = "$label\n$pkg"
+                isChecked = pkg in selected
+                setOnCheckedChangeListener { _, checked ->
+                    if (checked) selected.add(pkg) else selected.remove(pkg)
+                }
+            })
+        }
     }
 
     private fun startSearch() {
@@ -95,12 +141,13 @@ class AppPickerActivity : Activity() {
         progress.visibility = View.VISIBLE
         statusLabel.text = "Ищу установленные приложения…"
         scroll.visibility = View.GONE
+        searchField.visibility = View.GONE
         listLayout.removeAllViews()
         saveButton.isEnabled = false
 
         val pm = packageManager
         thread {
-            val apps: List<Pair<String, String>> = runCatching {
+            apps = runCatching {
                 pm.getInstalledApplications(PackageManager.GET_META_DATA)
                     .asSequence()
                     .map {
@@ -122,15 +169,7 @@ class AppPickerActivity : Activity() {
                 statusLabel.text = "Найдено приложений: ${apps.size}"
                 scroll.visibility = View.VISIBLE
                 saveButton.isEnabled = true
-                apps.forEach { (label, pkg) ->
-                    listLayout.addView(CheckBox(this).apply {
-                        text = "$label\n$pkg"
-                        isChecked = pkg in selected
-                        setOnCheckedChangeListener { _, checked ->
-                            if (checked) selected.add(pkg) else selected.remove(pkg)
-                        }
-                    })
-                }
+                renderApps()
             }
         }
     }
