@@ -417,7 +417,7 @@ class ProxySharePage(Page):
             self.protocol.setCurrentIndex(http_index)
         self.copy_socks.setEnabled(not multi_tcp_only)
         self.copy_socks.setToolTip(
-            "В мульти‑прокси BETA доступен только HTTP (TCP)" if multi_tcp_only else ""
+            "В мульти‑прокси доступен только HTTP (TCP)" if multi_tcp_only else ""
         )
 
     @staticmethod

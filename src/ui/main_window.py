@@ -29,7 +29,7 @@ NAV = (
     ("home", "Главная", "home", ""),
     ("zapret", "Zapret", "bolt", ""),
     ("vpn", "VPN", "globe", ""),
-    ("proxy_share", "Шеринг", "wifi", "BETA"),
+    ("proxy_share", "Шеринг", "wifi", ""),
     ("monitor", "Мониторинг", "activity", ""),
     ("blockcheck", "Проверки", "target", ""),
     ("updates", "Обновления", "download", ""),
