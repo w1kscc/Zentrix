@@ -106,7 +106,8 @@ class AppPickerActivity : Activity() {
         layout.addView(progress)
         layout.addView(statusLabel)
         layout.addView(searchField)
-        layout.addView(scroll)
+        layout.addView(scroll, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         layout.addView(saveButton)
         setContentView(layout)
     }

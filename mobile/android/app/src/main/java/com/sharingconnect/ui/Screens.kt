@@ -64,6 +64,7 @@ import com.sharingconnect.net.SpeedTestResult
 import com.sharingconnect.net.SpeedTest
 import kotlin.concurrent.thread
 import com.sharingconnect.net.ReleaseInfo
+import com.sharingconnect.vpn.TunnelStatus
 import com.sharingconnect.vpn.VpnState
 
 /** Палитра PC-версии Zentrix. */
@@ -165,9 +166,11 @@ fun ProxyScreen(
     onScanQr: () -> Unit,
     onEditProfile: () -> Unit,
 ) {
-    val connected by VpnState.connected.collectAsState()
+    val status by VpnState.status.collectAsState()
+    val connected = status == TunnelStatus.RUNNING
+    val busy = status == TunnelStatus.STARTING || status == TunnelStatus.STOPPING
     val proxy = remember(profileVersion) { settings.proxy }
-    val canConnect = proxy.isValid
+    val canConnect = proxy.isValid && !busy
 
     Column(
         Modifier
@@ -179,17 +182,20 @@ fun ProxyScreen(
         Spacer(Modifier.height(8.dp))
 
         // --- большая кнопка в центре ---
-        BigConnectButton(connected = connected, enabled = canConnect, onClick = onToggle)
+        BigConnectButton(status = status, enabled = canConnect, onClick = onToggle)
         Spacer(Modifier.height(10.dp))
         Text(
             when {
-                !canConnect -> "Профиль не настроен"
-                connected -> "ПОДКЛЮЧЕНО"
+                !proxy.isValid -> "Профиль не настроен"
+                status == TunnelStatus.STARTING -> "ПОДКЛЮЧЕНИЕ…"
+                status == TunnelStatus.STOPPING -> "ОТКЛЮЧЕНИЕ…"
+                status == TunnelStatus.RUNNING -> "ПОДКЛЮЧЕНО"
                 else -> "ОТКЛЮЧЕНО"
             },
             color = when {
-                !canConnect -> ZentrixColors.Muted
-                connected -> ZentrixColors.Success
+                !proxy.isValid -> ZentrixColors.Muted
+                status == TunnelStatus.RUNNING -> ZentrixColors.Success
+                status == TunnelStatus.STARTING || status == TunnelStatus.STOPPING -> ZentrixColors.Warning
                 else -> ZentrixColors.Muted
             },
             fontSize = 13.sp,
@@ -239,7 +245,9 @@ private fun chr(code: Int): String = code.toChar().toString()
  * пульсирующее свечение в подключённом состоянии — как hero-кнопка ПК-версии.
  */
 @Composable
-fun BigConnectButton(connected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+fun BigConnectButton(status: TunnelStatus, enabled: Boolean, onClick: () -> Unit) {
+    val connected = status == TunnelStatus.RUNNING
+    val busy = status == TunnelStatus.STARTING || status == TunnelStatus.STOPPING
     val pulse = rememberInfiniteTransition(label = "pulse")
     val glow by pulse.animateFloat(
         initialValue = 0.25f,
@@ -288,8 +296,11 @@ fun BigConnectButton(connected: Boolean, enabled: Boolean, onClick: () -> Unit) 
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
-                        if (connected) listOf(ZentrixColors.Accent2, Color(0xFF3B82F6))
-                        else listOf(ZentrixColors.Accent, Color(0xFF4C63E6)),
+                        when {
+                            busy -> listOf(ZentrixColors.Warning.copy(alpha = 0.85f), Color(0xFFB08A3E))
+                            connected -> listOf(ZentrixColors.Accent2, Color(0xFF3B82F6))
+                            else -> listOf(ZentrixColors.Accent, Color(0xFF4C63E6))
+                        },
                     ),
                 )
                 .border(2.dp, Color.White.copy(alpha = 0.25f), CircleShape)

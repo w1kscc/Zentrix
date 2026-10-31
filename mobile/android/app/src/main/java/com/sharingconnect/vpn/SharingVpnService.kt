@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.IpPrefix
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import com.sharingconnect.R
@@ -15,59 +17,139 @@ import com.sharingconnect.data.SettingsStore
 import java.io.File
 
 /**
- * VpnService Sharing Connect: поднимает TUN-интерфейс и передаёт его
- * tun2socks, который заворачивает трафик в SOCKS5/HTTP прокси ПК
- * (вкладка «Шеринг» Zentrix).
+ * VpnService Sharing Connect.
  *
- * Split tunneling (разрешённые/запрещённые приложения) и правила
- * брандмауэра настраиваются в разделе «Настройки» — бесплатно, без PRO.
+ * Все операции туннеля (старт/стоп) выполняются СТРОГО последовательно
+ * в одном фоновом потоке (HandlerThread): главный поток только ставит
+ * задачи в очередь. Это исключает гонки «стоп начат — старт пришёл»,
+ * из-за которых раньше кнопка переставала работать после отключения.
  */
 class SharingVpnService : VpnService() {
 
     private lateinit var settings: SettingsStore
-    private var tunnelFd: ParcelFileDescriptor? = null
-    private var tunnelThread: Thread? = null
+
+    private lateinit var tunnelLooper: HandlerThread
+    private lateinit var tunnelHandler: Handler
 
     override fun onCreate() {
         super.onCreate()
         settings = SettingsStore(this)
+        tunnelLooper = HandlerThread("sharing-tunnel").apply { start() }
+        tunnelHandler = Handler(tunnelLooper.looper)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopTunnel()
+        val action = intent?.action
+        if (action == ACTION_STOP) {
+            startForegroundNotification()
+            tunnelHandler.post { doStop(userInitiated = true, startId = startId) }
             return START_NOT_STICKY
         }
         startForegroundNotification()
-        return startTunnel() ?: run {
-            stopSelf()
-            START_NOT_STICKY
-        }
+        tunnelHandler.post { doStart(startId) }
+        return START_STICKY
     }
 
-    private fun startTunnel(): Int? {
+    // ------------------------------------------------------------- старт
+    private fun doStart(startId: Int) {
+        val current = VpnState.status.value
+        if (current == TunnelStatus.RUNNING || current == TunnelStatus.STARTING) {
+            LogRepo.log("Уже подключено/подключается — старт проигнорирован")
+            return
+        }
         val config = settings.proxy
         if (!config.isValid) {
             LogRepo.log("Адрес прокси не задан — отсканируйте QR из «Шеринга»")
-            return null
+            finishSelf(startId)
+            return
         }
-        stopTunnel(quiet = true)
+        setStatus(TunnelStatus.STARTING)
+        LogRepo.log("Подключение к ${config.uri}…")
 
+        // Останавливаем прошлый туннель, если нативный код ещё жив.
+        stopNative(waitMs = 5000)
+
+        // Прошлый VPN-интерфейс может держаться, пока нативный поток
+        // прошлого туннеля не выйдет — ретраим establish до 5 раз.
+        var tunFd: Int? = null
+        for (attempt in 1..5) {
+            try {
+                tunFd = buildVpnInterface().establish()?.detachFd()
+            } catch (error: Exception) {
+                LogRepo.log("Ошибка VPN-интерфейса (попытка $attempt): ${error.message}")
+            }
+            if (tunFd != null) break
+            LogRepo.log("VPN-интерфейс занят, жду… (попытка $attempt)")
+            Thread.sleep(400)
+        }
+        if (tunFd == null) {
+            LogRepo.log("Не удалось создать VPN-интерфейс за 5 попыток")
+            setStatus(TunnelStatus.STOPPED)
+            finishSelf(startId)
+            return
+        }
+
+        val configFile = writeTun2SocksConfig(config)
+        val started = Tun2Socks.start(configFile, tunFd)
+        if (!started || !Tun2Socks.isRunning()) {
+            LogRepo.log("tun2socks не запустился")
+            closeFd(tunFd)
+            setStatus(TunnelStatus.STOPPED)
+            finishSelf(startId)
+            return
+        }
+        setStatus(TunnelStatus.RUNNING)
+        LogRepo.log("Подключено: ${config.uri}")
+    }
+
+    // ---------------------------------------------------------- остановка
+    private fun doStop(userInitiated: Boolean, startId: Int) {
+        val current = VpnState.status.value
+        if (current == TunnelStatus.STOPPED || current == TunnelStatus.STOPPING) {
+            if (userInitiated) finishSelf(startId)
+            return
+        }
+        setStatus(TunnelStatus.STOPPING)
+        stopNative(waitMs = 5000)
+        setStatus(TunnelStatus.STOPPED)
+        if (userInitiated) {
+            LogRepo.log("Отключено")
+            finishSelf(startId)
+        }
+    }
+
+    /** terminate + активное ожидание подтверждения остановки нативного туннеля. */
+    private fun stopNative(waitMs: Long) {
+        if (!Tun2Socks.isRunning()) return
+        runCatching { Tun2Socks.terminate() }
+        var waited = 0L
+        while (Tun2Socks.isRunning() && waited < waitMs) {
+            Thread.sleep(100)
+            waited += 100
+        }
+        if (Tun2Socks.isRunning()) {
+            LogRepo.log("tun2socks не подтвердил остановку за ${waitMs}мс")
+        }
+    }
+
+    // ---------------------------------------------------------- интерфейс
+    private fun buildVpnInterface(): Builder {
         val builder = Builder()
             .setSession("Sharing Connect")
             .setMtu(8500)
             .addAddress("26.26.26.1", 24)
             .addDnsServer("26.26.26.2")
-            // Весь IPv4 уходит в туннель; исключения — только сам ПК-адрес и LAN
             .addRoute("0.0.0.0", 1)
             .addRoute("128.0.0.0", 1)
+        val config = settings.proxy
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             runCatching { builder.excludeRoute(IpPrefix(java.net.InetAddress.getByName(config.host), 32)) }
-            if (settings.routePrivateNetwork.not()) {
-                ROUTE_PRIVATE.forEach { runCatching { builder.excludeRoute(IpPrefix(java.net.InetAddress.getByName(it.first), it.second)) } }
+            if (!settings.routePrivateNetwork) {
+                ROUTE_PRIVATE.forEach {
+                    runCatching { builder.excludeRoute(IpPrefix(java.net.InetAddress.getByName(it.first), it.second)) }
+                }
             }
         }
-
         // Split tunneling: разрешённые приложения (если заданы) или запрещённые
         val allowed = settings.allowedApps()
         val disallowed = settings.disallowedApps()
@@ -76,66 +158,9 @@ class SharingVpnService : VpnService() {
         } else {
             disallowed.forEach(builder::addDisallowedApplication)
         }
-
-        // Прошлый VPN-интерфейс может держаться, пока нативный поток
-        // прошлого туннеля не выйдет — ретраим establish до 5 раз.
-        var tunFd: Int? = null
-        for (attempt in 1..5) {
-            try {
-                tunFd = builder.establish()?.detachFd()
-            } catch (error: Exception) {
-                LogRepo.log("Ошибка VPN-интерфейса (попытка $attempt): ${error.message}")
-            }
-            if (tunFd != null) break
-            LogRepo.log("VPN-интерфейс занят прошлым туннелем, жду… (попытка $attempt)")
-            tunnelThread?.join(600)
-            Thread.sleep(200)
-        }
-        if (tunFd == null) {
-            LogRepo.log("Не удалось создать VPN-интерфейс за 5 попыток")
-            return null
-        }
-
-        // tun2socks — синглтон: дожидаемся полной остановки прошлого туннеля.
-        if (Tun2Socks.isRunning()) {
-            Tun2Socks.terminate()
-            var waited = 0
-            while (Tun2Socks.isRunning() && waited < 3000) {
-                Thread.sleep(100)
-                waited += 100
-            }
-        }
-        // tun2socks — синглтон: полностью останавливаем прошлый туннель и
-        // дожидаемся, пока нативный код подтвердит остановку.
-        if (Tun2Socks.isRunning()) {
-            LogRepo.log("Останавливаю предыдущий туннель…")
-            Tun2Socks.terminate()
-            var waited = 0
-            while (Tun2Socks.isRunning() && waited < 5000) {
-                Thread.sleep(100)
-                waited += 100
-            }
-            if (Tun2Socks.isRunning()) {
-                LogRepo.log("Не удалось остановить предыдущий туннель — попробуйте ещё раз")
-                return null
-            }
-        }
-        val configFile = writeTun2SocksConfig(config)
-        LogRepo.log("Подключение к ${config.uri}…")
-        tunnelThread = Thread {
-            val started = Tun2Socks.start(configFile, tunFd)
-            if (!started) LogRepo.log("tun2socks не запустился")
-            VpnState.set(false)
-            LogRepo.log("Туннель завершён")
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        }.also { it.start() }
-        VpnState.set(true)
-        LogRepo.log("Подключено: ${config.uri}")
-        return START_STICKY
+        return builder
     }
 
-    /** YAML-конфиг hev-socks5-tunnel: TUN fd передаётся отдельным аргументом. */
     private fun writeTun2SocksConfig(config: ProxyConfig): String {
         val file = File(cacheDir, "tun2socks.yaml")
         file.writeText(
@@ -154,24 +179,14 @@ class SharingVpnService : VpnService() {
         return file.absolutePath
     }
 
-    private fun stopTunnel(quiet: Boolean = false) {
-        VpnState.set(false)
-        if (Tun2Socks.isRunning()) {
-            runCatching { Tun2Socks.terminate() }
-            var waited = 0
-            while (Tun2Socks.isRunning() && waited < 5000) {
-                Thread.sleep(100)
-                waited += 100
-            }
-        }
-        tunnelThread?.join(5000)
-        if (tunnelThread?.isAlive == true) tunnelThread?.interrupt()
-        tunnelThread = null
-        if (!quiet) {
-            LogRepo.log("Отключено")
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-        }
+    // -------------------------------------------------------------- прочее
+    private fun closeFd(fd: Int) {
+        runCatching { ParcelFileDescriptor.adoptFd(fd).close() }
+    }
+
+    private fun finishSelf(startId: Int? = null) {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (startId != null) stopSelfResult(startId) else stopSelf()
     }
 
     private fun startForegroundNotification() {
@@ -195,15 +210,11 @@ class SharingVpnService : VpnService() {
         startForeground(NOTIFICATION_ID, notification)
     }
 
-    private fun String.parseIpv4Cidr(): Pair<String, Int> {
-        val address = substringBefore('/')
-        val prefix = substringAfter('/', "32").toInt()
-        return address to prefix
-    }
+    private fun setStatus(status: TunnelStatus) = VpnState.set(status)
 
     override fun onDestroy() {
-        VpnState.set(false)
-        stopTunnel(quiet = true)
+        VpnState.set(TunnelStatus.STOPPED)
+        tunnelLooper.quitSafely()
         super.onDestroy()
     }
 

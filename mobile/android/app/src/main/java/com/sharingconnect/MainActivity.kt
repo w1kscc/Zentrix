@@ -47,6 +47,7 @@ import com.sharingconnect.ui.SettingsScreen
 import com.sharingconnect.ui.ZentrixColors
 import com.sharingconnect.vpn.LogRepo
 import com.sharingconnect.vpn.SharingVpnService
+import com.sharingconnect.vpn.TunnelStatus
 import com.sharingconnect.vpn.VpnState
 import kotlin.concurrent.thread
 
@@ -195,11 +196,16 @@ class MainActivity : ComponentActivity() {
             ).show()
             return
         }
-        if (VpnState.connected.value) {
+        val status = VpnState.status.value
+        if (status == TunnelStatus.RUNNING || status == TunnelStatus.STARTING) {
             startService(
                 Intent(this, SharingVpnService::class.java)
                     .setAction(SharingVpnService.ACTION_STOP)
             )
+            return
+        }
+        if (status == TunnelStatus.STOPPING) {
+            Toast.makeText(this, "Идёт отключение — секундочку", Toast.LENGTH_SHORT).show()
             return
         }
         if (settings.testConnection) {

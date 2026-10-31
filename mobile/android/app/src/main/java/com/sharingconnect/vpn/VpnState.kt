@@ -4,14 +4,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Глобальное состояние туннеля — единственный источник правды для UI. */
+/** Статус туннеля — единый источник правды для UI. */
+enum class TunnelStatus { STOPPED, STARTING, RUNNING, STOPPING }
+
+/** Глобальное состояние туннеля. Меняется только службой. */
 object VpnState {
-    private val flow = MutableStateFlow(false)
+    private val flow = MutableStateFlow(TunnelStatus.STOPPED)
 
-    /** true = туннель запущен. UI читает только отсюда, без нативных вызовов. */
-    val connected: StateFlow<Boolean> = flow.asStateFlow()
+    val status: StateFlow<TunnelStatus> = flow.asStateFlow()
 
-    fun set(value: Boolean) {
+    fun set(value: TunnelStatus) {
         flow.value = value
     }
 }

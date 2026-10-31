@@ -16,7 +16,6 @@ object Tun2Socks {
         true
     } catch (error: Throwable) {
         LogRepo.log("tun2socks: ошибка запуска — ${error.javaClass.simpleName}: ${error.message}")
-        VpnState.set(false)
         false
     }
 
@@ -31,7 +30,6 @@ object Tun2Socks {
     fun isRunning(): Boolean = try {
         hev.htproxy.TProxyService.TProxyIsRunning()
     } catch (error: Throwable) {
-        // До первого старта службы библиотека может быть не готова — это норма.
         false
     }
 }
