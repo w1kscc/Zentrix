@@ -198,7 +198,8 @@ fun ProxyScreen(
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(8.dp))
+        PageHeading("Прокси", "Соединение с ПК через QR или вручную")
+        Spacer(Modifier.height(4.dp))
 
         // --- большая кнопка в центре ---
         BigConnectButton(status = status)
@@ -488,6 +489,8 @@ fun TestScreen(settings: SettingsStore) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Тест потока", color = ZentrixColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("Скорость входящего и исходящего потока", color = ZentrixColors.Muted, fontSize = 12.5.sp)
+        Spacer(Modifier.height(12.dp))
         GlassCard {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatColumn("ВХОДЯЩИЙ", down, Modifier.weight(1f))
@@ -562,6 +565,7 @@ fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, 
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PageHeading("Настройки", "Все функции бесплатны и разблокированы")
         SectionHeader("Внешний вид")
         GlassCard {
             var theme by remember { mutableStateOf(settings.theme) }
@@ -689,4 +693,179 @@ fun SettingsScreen(settings: SettingsStore, onOpenApps: (kind: String) -> Unit, 
 @Composable
 fun SectionHeader(text: String) {
     Text(text, color = ZentrixColors.Accent2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+}
+
+/** Заголовок страницы в стиле page_heading ПК-версии: титул + подпись. */
+@Composable
+fun PageHeading(title: String, subtitle: String) {
+    Column(Modifier.padding(top = 18.dp, bottom = 6.dp)) {
+        Text(title, color = ZentrixColors.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        if (subtitle.isNotBlank()) {
+            Spacer(Modifier.height(3.dp))
+            Text(subtitle, color = ZentrixColors.Muted, fontSize = 12.5.sp)
+        }
+    }
+}
+
+/** Цветной бейдж состояния, как Badge ПК-версии. */
+@Composable
+fun StatusBadge(text: String, color: Color) {
+    Box(
+        Modifier
+            .background(color.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(text, color = color, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+    }
+}
+
+private fun statusInfo(status: TunnelStatus, proxyValid: Boolean): Triple<String, Color, String> {
+    return when {
+        !proxyValid -> Triple("НЕ НАСТРОЕН", ZentrixColors.Warning, "Профиль не заполнен")
+        status == TunnelStatus.RUNNING -> Triple("РАБОТАЕТ", ZentrixColors.Success, "Трафик идёт через прокси ПК")
+        status == TunnelStatus.STARTING -> Triple("ЗАПУСК…", ZentrixColors.Warning, "Поднимаю туннель")
+        status == TunnelStatus.STOPPING -> Triple("ОСТАНОВКА…", ZentrixColors.Warning, "Гашу туннель")
+        else -> Triple("ВЫКЛЮЧЕН", ZentrixColors.Muted, "Zapret и VPN — под одним стеклом")
+    }
+}
+
+/**
+ * Экран «Главная» — дашборд в стиле HomePage ПК-версии: hero-карточка
+ * с орбом статуса и быстрыми кнопками, сводка профиля, журнал.
+ */
+@Composable
+fun HomeScreen(
+    settings: SettingsStore,
+    profileVersion: Int,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onGoProxy: () -> Unit,
+) {
+    val status by VpnState.status.collectAsState()
+    val logLines by LogRepo.live.collectAsState()
+    val proxy = remember(profileVersion) { settings.proxy }
+    val (badge, badgeColor, subtitle) = statusInfo(status, proxy.isValid)
+    val connected = status == TunnelStatus.RUNNING
+    val busy = status == TunnelStatus.STARTING || status == TunnelStatus.STOPPING
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+    ) {
+        PageHeading("Главная", "Обход блокировок — под контролем")
+
+        // --- hero ---
+        GlassCard(Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(Modifier.weight(1f)) {
+                    StatusBadge(badge, badgeColor)
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        if (connected) "Подключение\nпод контролем" else "Подключение\nвыключено",
+                        color = ZentrixColors.Text,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 24.sp,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(subtitle, color = ZentrixColors.Muted, fontSize = 12.5.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PrimaryButton(
+                            text = if (connected) "Выключить" else "Включить",
+                            onClick = if (connected) onStop else onStart,
+                            enabled = proxy.isValid && (connected || !busy),
+                            modifier = Modifier.weight(1f),
+                        )
+                        GhostButton(text = "Прокси", onClick = onGoProxy, modifier = Modifier.weight(1f))
+                    }
+                }
+                // мини-орб статуса
+                Box(Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        (if (connected) ZentrixColors.Accent else ZentrixColors.Muted)
+                                            .copy(alpha = if (connected) 0.45f else 0.15f),
+                                        Color.Transparent,
+                                    ),
+                                ),
+                            ),
+                    )
+                    Box(
+                        Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .border(1.dp, (if (connected) ZentrixColors.Accent2 else ZentrixColors.Muted).copy(alpha = 0.5f), CircleShape)
+                            .background(Color.Transparent),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (connected) Icons.Filled.Check else Icons.Filled.Shield,
+                            contentDescription = null,
+                            tint = if (connected) ZentrixColors.Accent2 else ZentrixColors.Muted,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // --- движок (сводка ядра) ---
+        GlassCard(title = "Ядро туннеля") {
+            EngineRow("Hiddify Core (sing-box)", if (connected) "активно" else "ожидает", connected)
+            Spacer(Modifier.height(8.dp))
+            EngineRow("SOCKS5 → ПК", proxy.uri, proxy.isValid)
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // --- профиль ---
+        GlassCard(title = "Профиль") {
+            if (proxy.isValid) {
+                Text(proxy.uri, color = ZentrixColors.Text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            } else {
+                Text("Профиль не настроен — отсканируйте QR из «Шеринга»", color = ZentrixColors.Muted, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(8.dp))
+            GhostButton(text = "Настроить во вкладке «Прокси»", onClick = onGoProxy, modifier = Modifier.fillMaxWidth())
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // --- журнал ---
+        GlassCard(title = "Журнал") {
+            if (logLines.isEmpty()) {
+                Text("Журнал пуст", color = ZentrixColors.Muted, fontSize = 12.5.sp)
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    logLines.reversed().take(6).forEach { line ->
+                        Text(line, color = ZentrixColors.Muted, fontSize = 11.5.sp, lineHeight = 15.sp)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun EngineRow(title: String, value: String, ok: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(if (ok) ZentrixColors.Success else ZentrixColors.Muted.copy(alpha = 0.5f)),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(title, color = ZentrixColors.Text, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(value, color = ZentrixColors.Muted, fontSize = 11.5.sp)
+    }
 }

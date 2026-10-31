@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
@@ -40,6 +41,7 @@ import com.sharingconnect.data.SettingsStore
 import com.sharingconnect.net.ConnectionTester
 import com.sharingconnect.net.ReleaseInfo
 import com.sharingconnect.net.ReleaseChecker
+import com.sharingconnect.ui.HomeScreen
 import com.sharingconnect.ui.TestScreen
 import com.sharingconnect.ui.ProfileEditorScreen
 import com.sharingconnect.ui.ProxyScreen
@@ -134,14 +136,18 @@ class MainActivity : ComponentActivity() {
                 NavigationBar(containerColor = ZentrixColors.Bg2) {
                     NavigationBarItem(
                         selected = tab == 0, onClick = { tab = 0 },
-                        icon = { Icon(Icons.Filled.Shield, null) }, label = { Text("Прокси") },
+                        icon = { Icon(Icons.Filled.Home, null) }, label = { Text("Главная") },
                     )
                     NavigationBarItem(
                         selected = tab == 1, onClick = { tab = 1 },
-                        icon = { Icon(Icons.Filled.List, null) }, label = { Text("Тест") },
+                        icon = { Icon(Icons.Filled.Shield, null) }, label = { Text("Прокси") },
                     )
                     NavigationBarItem(
                         selected = tab == 2, onClick = { tab = 2 },
+                        icon = { Icon(Icons.Filled.List, null) }, label = { Text("Тест") },
+                    )
+                    NavigationBarItem(
+                        selected = tab == 3, onClick = { tab = 3 },
                         icon = { Icon(Icons.Filled.Settings, null) }, label = { Text("Настройки") },
                     )
                 }
@@ -154,7 +160,14 @@ class MainActivity : ComponentActivity() {
                     .padding(padding),
             ) {
                 when (tab) {
-                    0 -> {
+                    0 -> HomeScreen(
+                        settings = settings,
+                        profileVersion = profileVersion,
+                        onStart = ::startConnection,
+                        onStop = ::stopConnection,
+                        onGoProxy = { tab = 1 },
+                    )
+                    1 -> {
                         if (editingProfile) {
                             ProfileEditorScreen(
                                 settings = settings,
@@ -175,8 +188,8 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                    1 -> TestScreen(settings = settings)
-                    2 -> SettingsScreen(
+                    2 -> TestScreen(settings = settings)
+                    3 -> SettingsScreen(
                         settings = settings,
                         onOpenApps = ::openAppPicker,
                         onUpdateCheck = ::checkRelease,

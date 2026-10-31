@@ -12,8 +12,8 @@ android {
         applicationId = "com.sharingconnect"
         minSdk = 29
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.2.2"
+        versionCode = 16
+        versionName = "1.2.5"
         ndk {
             // Go-ядро весит >100 МБ на ABI. Минимальный SDK 29 — все такие
             // устройства ARM: берём только arm64, APK сжимаем (см. packaging).
