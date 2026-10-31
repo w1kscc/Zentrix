@@ -129,6 +129,23 @@ fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Bool
 }
 
 @Composable
+fun DangerButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+                 enabled: Boolean = true) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(46.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = ZentrixColors.Danger.copy(alpha = if (enabled) 0.9f else 0.35f),
+            contentColor = Color.White,
+        ),
+    ) {
+        Text(text, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
 fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
                   enabled: Boolean = true) {
     Button(
@@ -162,7 +179,8 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
 fun ProxyScreen(
     settings: SettingsStore,
     profileVersion: Int,
-    onToggle: () -> Unit,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
     onScanQr: () -> Unit,
     onEditProfile: () -> Unit,
 ) {
@@ -170,7 +188,8 @@ fun ProxyScreen(
     val connected = status == TunnelStatus.RUNNING
     val busy = status == TunnelStatus.STARTING || status == TunnelStatus.STOPPING
     val proxy = remember(profileVersion) { settings.proxy }
-    val canConnect = proxy.isValid && !busy
+    val canStart = proxy.isValid && !connected && !busy
+    val canStop = connected
 
     Column(
         Modifier
@@ -182,7 +201,22 @@ fun ProxyScreen(
         Spacer(Modifier.height(8.dp))
 
         // --- большая кнопка в центре ---
-        BigConnectButton(status = status, enabled = canConnect, onClick = onToggle)
+        BigConnectButton(status = status)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PrimaryButton(
+                text = "Запустить",
+                onClick = onStart,
+                enabled = canStart,
+                modifier = Modifier.weight(1f),
+            )
+            DangerButton(
+                text = "Выключить",
+                onClick = onStop,
+                enabled = canStop,
+                modifier = Modifier.weight(1f),
+            )
+        }
         Spacer(Modifier.height(10.dp))
         Text(
             when {
@@ -210,8 +244,8 @@ fun ProxyScreen(
                 Column(Modifier.weight(1f)) {
                     Text("Профиль подключения", color = ZentrixColors.Muted, fontSize = 11.5.sp)
                     Text(
-                        if (canConnect) proxy.uri else "Не настроен",
-                        color = if (canConnect) ZentrixColors.Text else ZentrixColors.Muted,
+                        if (proxy.isValid) proxy.uri else "Не настроен",
+                        color = if (proxy.isValid) ZentrixColors.Text else ZentrixColors.Muted,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -245,7 +279,7 @@ private fun chr(code: Int): String = code.toChar().toString()
  * пульсирующее свечение в подключённом состоянии — как hero-кнопка ПК-версии.
  */
 @Composable
-fun BigConnectButton(status: TunnelStatus, enabled: Boolean, onClick: () -> Unit) {
+fun BigConnectButton(status: TunnelStatus) {
     val connected = status == TunnelStatus.RUNNING
     val busy = status == TunnelStatus.STARTING || status == TunnelStatus.STOPPING
     val pulse = rememberInfiniteTransition(label = "pulse")
@@ -303,8 +337,7 @@ fun BigConnectButton(status: TunnelStatus, enabled: Boolean, onClick: () -> Unit
                         },
                     ),
                 )
-                .border(2.dp, Color.White.copy(alpha = 0.25f), CircleShape)
-                .clickable(enabled = enabled, onClick = onClick),
+                .border(2.dp, Color.White.copy(alpha = 0.25f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

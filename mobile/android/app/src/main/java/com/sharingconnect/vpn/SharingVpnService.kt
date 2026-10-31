@@ -104,11 +104,8 @@ class SharingVpnService : VpnService() {
 
     // ---------------------------------------------------------- остановка
     private fun doStop(userInitiated: Boolean, startId: Int) {
-        val current = VpnState.status.value
-        if (current == TunnelStatus.STOPPED || current == TunnelStatus.STOPPING) {
-            if (userInitiated) finishSelf(startId)
-            return
-        }
+        // Всегда глушим нативный туннель, даже если статус-машина думает,
+        // что всё остановлено: рассинхрон = зависший прокси в системе.
         setStatus(TunnelStatus.STOPPING)
         stopNative(waitMs = 5000)
         setStatus(TunnelStatus.STOPPED)

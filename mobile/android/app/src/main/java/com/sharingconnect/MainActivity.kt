@@ -168,7 +168,8 @@ class MainActivity : ComponentActivity() {
                             ProxyScreen(
                                 settings = settings,
                                 profileVersion = profileVersion,
-                                onToggle = ::toggleConnection,
+                                onStart = ::startConnection,
+                                onStop = ::stopConnection,
                                 onScanQr = ::scanQr,
                                 onEditProfile = { editingProfile = true },
                             )
@@ -185,8 +186,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** «Подключить» — только подключение, никаких QR. */
-    private fun toggleConnection() {
+    /** «Запустить» — тест соединения (по настройке) и старт службы. */
+    private fun startConnection() {
         val config = settings.proxy
         if (!config.isValid) {
             Toast.makeText(
@@ -194,18 +195,6 @@ class MainActivity : ComponentActivity() {
                 "Сначала сохраните профиль: отсканируйте QR или заполните вручную",
                 Toast.LENGTH_LONG,
             ).show()
-            return
-        }
-        val status = VpnState.status.value
-        if (status == TunnelStatus.RUNNING || status == TunnelStatus.STARTING) {
-            startService(
-                Intent(this, SharingVpnService::class.java)
-                    .setAction(SharingVpnService.ACTION_STOP)
-            )
-            return
-        }
-        if (status == TunnelStatus.STOPPING) {
-            Toast.makeText(this, "Идёт отключение — секундочку", Toast.LENGTH_SHORT).show()
             return
         }
         if (settings.testConnection) {
@@ -224,6 +213,14 @@ class MainActivity : ComponentActivity() {
             return
         }
         requestVpnAndStart()
+    }
+
+    /** «Выключить» — всегда отправляет явную команду остановки службе. */
+    private fun stopConnection() {
+        startService(
+            Intent(this, SharingVpnService::class.java)
+                .setAction(SharingVpnService.ACTION_STOP)
+        )
     }
 
     private fun requestVpnAndStart() {
