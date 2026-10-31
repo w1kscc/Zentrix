@@ -96,6 +96,7 @@ class SharingVpnService : VpnService() {
             LogRepo.log("Туннель завершён")
             stopSelf()
         }.also { it.start() }
+        VpnState.set(true)
         LogRepo.log("Подключено: ${config.uri}")
         return START_STICKY
     }
@@ -120,6 +121,7 @@ class SharingVpnService : VpnService() {
     }
 
     private fun stopTunnel(quiet: Boolean = false) {
+        VpnState.set(false)
         runCatching { Tun2Socks.terminate() }
         tunnelThread?.interrupt()
         tunnelThread = null
@@ -158,6 +160,7 @@ class SharingVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        VpnState.set(false)
         stopTunnel(quiet = true)
         super.onDestroy()
     }

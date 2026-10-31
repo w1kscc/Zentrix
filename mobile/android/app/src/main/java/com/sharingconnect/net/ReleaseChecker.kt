@@ -4,16 +4,24 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class ReleaseInfo(val version: String, val apkUrl: String?, val notesUrl: String)
+data class ReleaseInfo(
+    val version: String,
+    val apkUrl: String?,
+    val notesUrl: String,
+)
 
 /**
- * Проверка актуальной версии Sharing Connect через GitHub Releases
- * проекта Zentrix. Релизы публикуются из того же репозитория, что и
- * PC-версия: https://github.com/w1kscc/Zentrix/releases
+ * Проверка актуальной версии APK Sharing Connect через GitHub Releases
+ * проекта Zentrix (https://github.com/w1kscc/Zentrix/releases).
+ *
+ * Тег релиза принадлежит PC-версии (например v1.0.5), поэтому версия APK
+ * берётся из ИМЕНИ файла-ассета: SharingConnect-1.0.2.apk. Ассеты без
+ * версии в имени игнорируются.
  */
 object ReleaseChecker {
 
     private const val API = "https://api.github.com/repos/w1kscc/Zentrix/releases/latest"
+    private val APK_VERSION = Regex("""SharingConnect-(\d+(?:\.\d+)*)\.apk""", RegexOption.IGNORE_CASE)
 
     fun fetchLatest(timeoutMs: Int = 8000): ReleaseInfo {
         val connection = URL(API).openConnection() as HttpURLConnection
@@ -27,19 +35,22 @@ object ReleaseChecker {
             }
             val body = connection.inputStream.bufferedReader().readText()
             val json = JSONObject(body)
-            val tag = json.getString("tag_name").removePrefix("v")
-            var apk: String? = null
+            var apkVersion: String? = null
+            var apkUrl: String? = null
             val assets = json.getJSONArray("assets")
             for (index in 0 until assets.length()) {
                 val asset = assets.getJSONObject(index)
-                if (asset.getString("name").endsWith(".apk")) {
-                    apk = asset.getString("browser_download_url")
+                val name = asset.getString("name")
+                val match = APK_VERSION.find(name)
+                if (match != null) {
+                    apkVersion = match.groupValues[1]
+                    apkUrl = asset.getString("browser_download_url")
                     break
                 }
             }
             return ReleaseInfo(
-                version = tag,
-                apkUrl = apk,
+                version = apkVersion ?: json.getString("tag_name").removePrefix("v"),
+                apkUrl = apkUrl,
                 notesUrl = json.getString("html_url"),
             )
         } finally {

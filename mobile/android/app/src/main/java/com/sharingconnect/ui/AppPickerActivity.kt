@@ -17,8 +17,8 @@ import kotlin.concurrent.thread
 
 /**
  * Выбор приложений: split tunneling (разрешённые/запрещённые) и правила
- * брандмауэра. Установленные приложения ищутся автоматически в фоне,
- * системные исключаются.
+ * брандмауэра. Список установленных (не системных) приложений ищется
+ * по нажатию кнопки «Найти приложения».
  */
 class AppPickerActivity : Activity() {
 
@@ -26,6 +26,7 @@ class AppPickerActivity : Activity() {
     private lateinit var kind: String
     private val selected = mutableSetOf<String>()
 
+    private lateinit var findButton: Button
     private lateinit var progress: ProgressBar
     private lateinit var statusLabel: TextView
     private lateinit var scroll: ScrollView
@@ -56,8 +57,12 @@ class AppPickerActivity : Activity() {
             textSize = 18f
             setPadding(0, 0, 0, 16)
         })
-        progress = ProgressBar(this)
-        statusLabel = TextView(this).apply { text = "Ищу установленные приложения…" }
+        findButton = Button(this).apply {
+            text = "Найти приложения"
+            setOnClickListener { startSearch() }
+        }
+        progress = ProgressBar(this).apply { visibility = View.GONE }
+        statusLabel = TextView(this).apply { text = "Нажмите «Найти приложения» для сканирования" }
         scroll = ScrollView(this).apply { visibility = View.GONE }
         listLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(listLayout)
@@ -77,16 +82,22 @@ class AppPickerActivity : Activity() {
                 finish()
             }
         }
+        layout.addView(findButton)
         layout.addView(progress)
         layout.addView(statusLabel)
         layout.addView(scroll)
         layout.addView(saveButton)
         setContentView(layout)
-
-        loadApps()
     }
 
-    private fun loadApps() {
+    private fun startSearch() {
+        findButton.isEnabled = false
+        progress.visibility = View.VISIBLE
+        statusLabel.text = "Ищу установленные приложения…"
+        scroll.visibility = View.GONE
+        listLayout.removeAllViews()
+        saveButton.isEnabled = false
+
         val pm = packageManager
         thread {
             val apps: List<Pair<String, String>> = runCatching {
@@ -100,6 +111,7 @@ class AppPickerActivity : Activity() {
             }.getOrDefault(emptyList())
             runOnUiThread {
                 progress.visibility = View.GONE
+                findButton.isEnabled = true
                 if (apps.isEmpty()) {
                     statusLabel.text = "Установленные приложения не найдены"
                     return@runOnUiThread

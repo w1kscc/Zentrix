@@ -46,7 +46,7 @@ import com.sharingconnect.data.SettingsStore
 import com.sharingconnect.vpn.LogRepo
 import com.sharingconnect.net.ReleaseChecker
 import com.sharingconnect.net.ReleaseInfo
-import com.sharingconnect.vpn.Tun2Socks
+import com.sharingconnect.vpn.VpnState
 
 /** Палитра PC-версии Zentrix. */
 object ZentrixColors {
@@ -145,7 +145,7 @@ fun ProxyScreen(
     onScanQr: () -> Unit,
     onEditProfile: () -> Unit,
 ) {
-    var connected by remember { mutableStateOf(Tun2Socks.isRunning()) }
+    val connected by VpnState.connected.collectAsState()
     val proxy = remember(profileVersion) { settings.proxy }
 
     Column(
@@ -176,7 +176,7 @@ fun ProxyScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PrimaryButton(
                     text = if (connected) "Отключить" else "Подключить",
-                    onClick = { connected = Tun2Socks.isRunning(); onToggle() },
+                    onClick = onToggle,
                     modifier = Modifier.weight(1f),
                 )
                 GhostButton(text = "Сканировать QR", onClick = onScanQr, modifier = Modifier.weight(1f))

@@ -47,7 +47,7 @@ import com.sharingconnect.ui.SettingsScreen
 import com.sharingconnect.ui.ZentrixColors
 import com.sharingconnect.vpn.LogRepo
 import com.sharingconnect.vpn.SharingVpnService
-import com.sharingconnect.vpn.Tun2Socks
+import com.sharingconnect.vpn.VpnState
 import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
@@ -195,7 +195,7 @@ class MainActivity : ComponentActivity() {
             ).show()
             return
         }
-        if (Tun2Socks.isRunning()) {
+        if (VpnState.connected.value) {
             startService(
                 Intent(this, SharingVpnService::class.java)
                     .setAction(SharingVpnService.ACTION_STOP)
