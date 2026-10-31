@@ -286,6 +286,16 @@ def parse_bat(path: Path) -> ParsedCommand:
                          unresolved=unresolved, raw_line=command_line.strip())
 
 
+def natural_key(value: str) -> list:
+    """Ключ натуральной сортировки как в Проводнике: ALT < ALT2 < ALT10.
+
+    Текстовые токены идут раньше числовых, поэтому вариант без номера
+    («general (ALT)») стоит перед «general (ALT2)».
+    """
+    return [(0, part.lower()) if not part.isdigit() else (1, int(part))
+            for part in re.split(r"(\d+|\))", value) if part]
+
+
 def discover_strategies(folder: Path) -> list[Strategy]:
     if not folder.exists():
         return []
@@ -316,7 +326,7 @@ def discover_strategies(folder: Path) -> list[Strategy]:
             rank = 5
         else:
             rank = 6
-        return (rank, strategy.name)
+        return (rank, natural_key(strategy.name))
 
     return sorted(items, key=sort_key)
 
