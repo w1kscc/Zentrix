@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.sharingconnect"
-        minSdk = 24
+        minSdk = 29
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
@@ -42,6 +42,9 @@ dependencies {
 
     // QR-сканер адреса прокси из вкладки «Шеринг» Zentrix
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
+    // tun2socks (hev-socks5-tunnel): скачивается scripts/fetch_tun2socks.py
+    implementation(files("libs/hev-socks5-tunnel.aar"))
     implementation("androidx.compose.material:material-icons-extended")
 
     testImplementation("junit:junit:4.13.2")

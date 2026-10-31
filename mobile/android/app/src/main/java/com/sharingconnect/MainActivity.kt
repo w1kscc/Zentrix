@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         settings = SettingsStore(this)
         // QR из внешнего сканера или share-интент: socks5://host:port
-        intent?.dataStringExtra?.let { raw ->
+        intent?.getStringExtra(Intent.EXTRA_TEXT)?.let { raw ->
             ProxyConfig.parse(raw)?.let { settings.proxy = it }
         }
         setContent { App() }

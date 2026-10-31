@@ -27,6 +27,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -172,8 +173,12 @@ fun ProxyScreen(settings: SettingsStore, connected: Boolean, onToggle: () -> Uni
 /** Экран «Журнал». */
 @Composable
 fun LogScreen() {
-    val lines by remember { LogRepo.live }
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    val lines by LogRepo.live.collectAsState()
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+    ) {
         Text("Журнал", color = ZentrixColors.Text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(10.dp))
         GlassCard(Modifier.fillMaxWidth()) {

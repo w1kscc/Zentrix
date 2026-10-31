@@ -31,9 +31,13 @@ Split tunneling, брандмауэр с правилами и синхрони�
 
 ```bash
 cd mobile/android
-python scripts/fetch_tun2socks.py   # скачать libtun2socks.so (hev-socks5-tunnel)
+python scripts/fetch_tun2socks.py   # скачать hev-socks5-tunnel.aar в app/libs/
 gradle assembleDebug                # APK: app/build/outputs/apk/debug/
 ```
+
+Проверено: сборка проходит на JDK 21 (JAVA_HOME=C:\Program Files\Java\jdk-21.0.12)
+и Gradle 8.10.2. JDK из состава Android Studio не подходит — Kotlin-компилятор
+не распознаёт Java 25. Android 10+ (minSdk 29): требование AAR hev-socks5-tunnel.
 
 Релизная сборка: `gradle assembleRelease` (подпись — локальный keystore).
 
@@ -54,7 +58,7 @@ mobile/android/
 │   ├── ui/AppPickerActivity.kt    # split tunneling и правила брандмауэра
 │   ├── ui/ManualProxyActivity.kt  # ручной ввод адреса прокси
 │   ├── vpn/SharingVpnService.kt   # VpnService + правила маршрутизации
-│   ├── vpn/Tun2Socks.kt           # JNI-мост к hev-socks5-tunnel
+│   ├── vpn/Tun2Socks.kt           # мост к hev.htproxy.TProxyService (AAR)
 │   ├── vpn/LogRepo.kt             # журнал
 │   ├── data/SettingsStore.kt      # настройки и разбор QR-адреса
 │   ├── net/ReleaseChecker.kt      # проверка версии через GitHub API

@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
+import android.net.IpPrefix
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -11,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import com.sharingconnect.R
 import com.sharingconnect.data.ProxyConfig
 import com.sharingconnect.data.SettingsStore
+import java.io.File
 
 /**
  * VpnService Sharing Connect: поднимает TUN-интерфейс и передаёт его
@@ -59,9 +61,11 @@ class SharingVpnService : VpnService() {
             // Весь IPv4 уходит в туннель; исключения — только сам ПК-адрес и LAN
             .addRoute("0.0.0.0", 1)
             .addRoute("128.0.0.0", 1)
-            .excludeRoute(config.host.parseIpv4Cidr())
-        if (settings.routePrivateNetwork.not()) {
-            ROUTE_PRIVATE.forEach { builder.excludeRoute(it) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            runCatching { builder.excludeRoute(IpPrefix(java.net.InetAddress.getByName(config.host), 32)) }
+            if (settings.routePrivateNetwork.not()) {
+                ROUTE_PRIVATE.forEach { runCatching { builder.excludeRoute(IpPrefix(java.net.InetAddress.getByName(it.first), it.second)) } }
+            }
         }
 
         // Split tunneling: разрешённые приложения (если заданы) или запрещённые
@@ -73,55 +77,52 @@ class SharingVpnService : VpnService() {
             disallowed.forEach(builder::addDisallowedApplication)
         }
 
-        tunnelFd = try {
-            builder.establish()
+        val tunFd = try {
+            builder.establish()?.detachFd()
         } catch (error: Exception) {
             LogRepo.log("Не удалось поднять VPN: ${error.message}")
             return null
         }
-        if (tunnelFd == null) {
+        if (tunFd == null) {
             LogRepo.log("VPN-разрешение не выдано системой")
             return null
         }
 
-        val tunnelConfig = buildTun2SocksConfig(config)
+        val configFile = writeTun2SocksConfig(config)
         LogRepo.log("Подключение к ${config.uri}…")
         tunnelThread = Thread {
-            val code = Tun2Socks.start(tunnelConfig)
-            LogRepo.log("Туннель завершён (код $code)")
+            val started = Tun2Socks.start(configFile, tunFd)
+            if (!started) LogRepo.log("tun2socks не запустился")
+            LogRepo.log("Туннель завершён")
             stopSelf()
         }.also { it.start() }
         LogRepo.log("Подключено: ${config.uri}")
         return START_STICKY
     }
 
-    /** Конфиг hev-socks5-tunnel: TUN fd передаётся через имя "/dev/fd/N". */
-    private fun buildTun2SocksConfig(config: ProxyConfig): String {
-        val fd = tunnelFd?.detachFd() ?: return "{}"
-        val socksPort = config.port
-        return """
-        {
-          "tun": {
-            "fd": $fd,
-            "mtu": 8500,
-            "multi-queue": true
-          },
-          "socks5": {
-            "port": $socksPort,
-            "address": "${config.host}",
-            "udp": "udp-over-tcp"
-          },
-          "tcp": { "timeout": 60000 }
-        }
-        """.trimIndent()
+    /** YAML-конфиг hev-socks5-tunnel: TUN fd передаётся отдельным аргументом. */
+    private fun writeTun2SocksConfig(config: ProxyConfig): String {
+        val file = File(cacheDir, "tun2socks.yaml")
+        file.writeText(
+            """
+            tun:
+              mtu: 8500
+              multi-queue: true
+            socks5:
+              address: "${config.host}"
+              port: ${config.port}
+              udp: 'udp'
+            misc:
+              log-level: warn
+            """.trimIndent() + "\n",
+        )
+        return file.absolutePath
     }
 
     private fun stopTunnel(quiet: Boolean = false) {
         runCatching { Tun2Socks.terminate() }
         tunnelThread?.interrupt()
         tunnelThread = null
-        tunnelFd?.close()
-        tunnelFd = null
         if (!quiet) {
             LogRepo.log("Отключено")
             stopForeground(STOP_FOREGROUND_REMOVE)
