@@ -12,8 +12,8 @@ android {
         applicationId = "com.sharingconnect"
         minSdk = 29
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.1.0"
+        versionCode = 13
+        versionName = "1.2.0"
     }
 
     buildTypes {
@@ -28,6 +28,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
+    packagingOptions { jniLibs { useLegacyPackaging = true } }
 }
 
 dependencies {
@@ -44,7 +45,7 @@ dependencies {
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
     // tun2socks (hev-socks5-tunnel): скачивается scripts/fetch_tun2socks.py
-    implementation(files("libs/hev-socks5-tunnel.aar"))
+    implementation(files("libs/hiddify-core.aar"))
     implementation("androidx.compose.material:material-icons-extended")
 
     testImplementation("junit:junit:4.13.2")
