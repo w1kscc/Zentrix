@@ -49,6 +49,59 @@ def update_ipset(folder: Path, timeout: float = 20.0) -> int:
     return len(lines)
 
 
+def sanitize_list_filename(name: str) -> str | None:
+    """Validate a user-supplied list filename; None if it is unsafe."""
+    raw = (name or "").strip().strip("\\/")
+    name = raw.replace("\\", "/").split("/")[-1].strip()
+    if not name or "/" in raw or "\\" in raw or ".." in name:
+        return None
+    if not name.lower().endswith((".txt", ".lst")):
+        return None
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_. ")
+    if not set(name) <= allowed:
+        return None
+    return name
+
+
+def update_custom_list(folder: Path, filename: str, url: str,
+                       timeout: float = 20.0) -> int:
+    """Download a user-registered banlist into lists/<filename>; returns line count.
+
+    The previous file is kept as <filename>.backup, like update_ipset does.
+    """
+    safe = sanitize_list_filename(filename)
+    if not safe:
+        raise RuntimeError(f"Недопустимое имя файла списка: {filename!r}")
+    if not (url or "").lower().startswith(("http://", "https://")):
+        raise RuntimeError("Ссылка должна начинаться с http:// или https://")
+    text = _download(url, timeout)
+    lines = [line.strip() for line in text.splitlines()
+             if line.strip() and not line.strip().startswith("#")]
+    if not lines:
+        raise RuntimeError("Скачанный список пуст")
+    lists_dir = folder / "lists"
+    lists_dir.mkdir(parents=True, exist_ok=True)
+    target = lists_dir / safe
+    if target.exists():
+        shutil.copy2(target, lists_dir / (safe + ".backup"))
+    target.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8", newline="")
+    return len(lines)
+
+
+def update_custom_lists(folder: Path, entries: list[dict]) -> list[tuple[str, bool, str]]:
+    """Refresh every user-registered list; returns (name, ok, message) tuples."""
+    results: list[tuple[str, bool, str]] = []
+    for entry in entries:
+        name = str(entry.get("name") or entry.get("file") or "?")
+        try:
+            count = update_custom_list(folder, str(entry.get("file", "")),
+                                       str(entry.get("url", "")))
+            results.append((name, True, f"{count} записей"))
+        except Exception as exc:  # keep updating the remaining lists
+            results.append((name, False, str(exc)))
+    return results
+
+
 def hosts_path() -> Path:
     return Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "drivers" / "etc" / "hosts"
 

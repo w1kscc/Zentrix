@@ -267,6 +267,49 @@ class ZapretPage(Page):
         bypass_card.add(self.bypass_label)
         side.addWidget(bypass_card)
 
+        custom_card = GlassCard("Мои списки",
+                                "Свои бан-листы (добавленные вручную): ссылка → файл в lists\\",
+                                "list", p)
+        self.custom_lists = QListWidget()
+        self.custom_lists.setVerticalScrollMode(QListWidget.ScrollPerPixel)
+        self.custom_lists.setMinimumHeight(96)
+        self.custom_lists.itemDoubleClicked.connect(lambda _item: self._update_custom())
+        custom_card.add(self.custom_lists, 1)
+        custom_buttons = QHBoxLayout()
+        custom_buttons.setSpacing(8)
+        self.add_list_button = QPushButton("Добавить…")
+        self.add_list_button.setToolTip(
+            "Зарегистрировать свой бан-лист: ссылка на .txt и имя файла в lists\\\n"
+            "Двойной клик по списку — обновить его"
+        )
+        self.add_list_button.clicked.connect(self._add_custom_list)
+        custom_buttons.addWidget(self.add_list_button, 1)
+        self.remove_list_button = QPushButton("Удалить")
+        self.remove_list_button.clicked.connect(self._remove_custom_list)
+        custom_buttons.addWidget(self.remove_list_button, 1)
+        custom_card.add_layout(custom_buttons)
+        self.update_lists_button = QPushButton("Обновить мои списки")
+        self.update_lists_button.setIcon(icon("refresh", p.accent, 17))
+        self.update_lists_button.setToolTip(
+            "Скачать все зарегистрированные списки заново.\n"
+            "Предыдущая версия каждого файла сохраняется как *.backup"
+        )
+        self.update_lists_button.clicked.connect(self._update_custom)
+        custom_card.add(self.update_lists_button)
+        self.custom_auto_row = ToggleRow(
+            "Обновлять при запуске Zentrix",
+            "Скачивать мои списки автоматически при каждом открытии приложения",
+            bool(self.ctx.settings.get("zapret.custom_lists.auto", False)), p)
+        self.custom_auto_row.toggled.connect(self._custom_auto_changed)
+        custom_card.add(self.custom_auto_row)
+        self.custom_label = QLabel("")
+        self.custom_label.setObjectName("tiny")
+        self.custom_label.setWordWrap(True)
+        custom_card.add(self.custom_label)
+        self._custom_updated = False
+        self._populate_custom_lists()
+        side.addWidget(custom_card)
+
         system_card = GlassCard("Состояние", "", "cpu", p)
         self.pid_label = QLabel("PID: —")
         self.pid_label.setObjectName("tiny")
@@ -398,6 +441,11 @@ class ZapretPage(Page):
         # Auto-scan game libraries once per session, per the game filter spec.
         if not self._scanned:
             self._scan_games()
+        # Auto-update user-registered banlists once per session, if enabled.
+        if (not self._custom_updated
+                and bool(self.ctx.settings.get("zapret.custom_lists.auto", False))
+                and self._custom_entries()):
+            self._update_custom()
 
     def on_theme(self) -> None:
         p = self.ctx.palette
@@ -599,6 +647,118 @@ class ZapretPage(Page):
         self.gamefilter_status.setText(text)
         self.gamefilter_status.setVisible(bool(text))
 
+    # ---------------------------------------------------------- custom lists
+    def _custom_entries(self) -> list[dict]:
+        entries = self.ctx.settings.get("zapret.custom_lists") or []
+        return [dict(entry) for entry in entries if isinstance(entry, dict)]
+
+    def _save_custom_entries(self, entries: list[dict]) -> None:
+        self.ctx.settings.set("zapret.custom_lists", entries)
+
+    def _populate_custom_lists(self) -> None:
+        self.custom_lists.clear()
+        for entry in self._custom_entries():
+            item = QListWidgetItem(f"{entry.get('name', '?')}   ·   lists\\{entry.get('file', '?')}")
+            item.setData(Qt.UserRole, entry)
+            item.setToolTip(str(entry.get("url", "")))
+            self.custom_lists.addItem(item)
+
+    def _custom_auto_changed(self, value: bool) -> None:
+        self.ctx.settings.set("zapret.custom_lists.auto", bool(value))
+        if value and self._custom_entries():
+            self.ctx.notify("Мои списки будут обновляться при запуске Zentrix", "ok")
+        elif value:
+            self.ctx.notify("Добавьте хотя бы один список — иначе обновлять нечего", "warn")
+
+    def _add_custom_list(self) -> None:
+        from PySide6.QtWidgets import QLineEdit
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("Название (например, Мой бан-лист)")
+        url_edit = QLineEdit()
+        url_edit.setPlaceholderText("https://example.com/list.txt")
+        file_edit = QLineEdit()
+        file_edit.setPlaceholderText("Имя файла в lists\\, например my-list.txt")
+        layout.addWidget(name_edit)
+        layout.addWidget(url_edit)
+        layout.addWidget(file_edit)
+
+        def submit() -> None:
+            name = name_edit.text().strip() or "Мой список"
+            url = url_edit.text().strip()
+            filename = zapret_lists.sanitize_list_filename(file_edit.text())
+            if not url.lower().startswith(("http://", "https://")):
+                self.ctx.notify("Некорректная ссылка — нужен http:// или https://", "warn")
+                return
+            if not filename:
+                self.ctx.notify(
+                    "Некорректное имя файла: только буквы, цифры, -_. и расширение .txt/.lst",
+                    "warn")
+                return
+            entries = self._custom_entries()
+            if any(str(entry.get("file", "")).lower() == filename.lower()
+                   for entry in entries):
+                self.ctx.notify("Список с таким файлом уже добавлен", "warn")
+                return
+            entries.append({"name": name, "url": url, "file": filename})
+            self._save_custom_entries(entries)
+            self._populate_custom_lists()
+            self.ctx.overlay.close_panel()
+            self.ctx.notify(f"Список «{name}» добавлен. Нажмите «Обновить мои списки».", "ok")
+
+        overlays.panel_with_actions(
+            self.ctx.overlay, "Добавить свой список", content,
+            [("Добавить", "primary", submit),
+             ("Отмена", "ghost", self.ctx.overlay.close_panel)],
+        )
+
+    def _remove_custom_list(self) -> None:
+        item = self.custom_lists.currentItem()
+        if item is None:
+            self.ctx.notify("Выберите список в списке выше", "warn")
+            return
+        entry = item.data(Qt.UserRole)
+        entries = [e for e in self._custom_entries()
+                   if e.get("file") != entry.get("file")]
+        self._save_custom_entries(entries)
+        self._populate_custom_lists()
+        self.ctx.notify(f"Список «{entry.get('name', '?')}» удалён (файл в lists\\ не тронут)", "ok")
+
+    def _update_custom(self) -> None:
+        if getattr(self, "_updating_lists", False):
+            return
+        entries = self._custom_entries()
+        if not entries:
+            self.ctx.notify("Нет своих списков — добавьте через «Добавить…»", "warn")
+            return
+        self._updating_lists = True
+        self.update_lists_button.setEnabled(False)
+        self.custom_label.setText(f"Обновляю списки: 0 из {len(entries)}…")
+        run_task(self, zapret_lists.update_custom_lists, self.engine.folder(), entries,
+                 on_done=self._custom_updated_slot, on_error=self._lists_failed)
+
+    def _custom_updated_slot(self, results) -> None:
+        self._updating_lists = False
+        self._custom_updated = True
+        self.update_lists_button.setEnabled(True)
+        ok = [name for name, success, _ in results if success]
+        failed = [(name, message) for name, success, message in results if not success]
+        if failed:
+            detail = "; ".join(f"{name}: {message}" for name, message in failed[:3])
+            self.custom_label.setText(
+                f"Обновлено: {len(ok)} из {len(results)}. Ошибки: {detail}")
+            self.ctx.notify(f"Свои списки: обновлено {len(ok)}, с ошибками {len(failed)}", "warn")
+        else:
+            self.custom_label.setText(
+                "Списки обновлены: " + ", ".join(f"{name} ({message})" for name, _, message in results))
+            self.ctx.notify("Все свои списки обновлены", "ok")
+        if ok and self.engine.status == "running":
+            self.ctx.notify("Перезапустите Zapret, чтобы новые списки применились", "info")
+
     # --------------------------------------------------------- bypass updates
     def _update_ipset(self) -> None:
         if getattr(self, "_updating_lists", False):
@@ -672,6 +832,7 @@ class ZapretPage(Page):
         self._updating_lists = False
         self.ipset_button.setEnabled(True)
         self.hosts_button.setEnabled(True)
+        self.update_lists_button.setEnabled(True)
         self.bypass_label.setText(f"Ошибка обновления: {message}")
         self.ctx.notify(f"Обновление списков: {message}", "err", "error")
 
