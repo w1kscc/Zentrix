@@ -138,21 +138,23 @@ class SettingsPage(Page):
         p = self.ctx.palette
         page, layout = self._page()
 
-        theme_card = GlassCard("Тема оформления", "Светлая и тёмная палитры", "palette", p)
+        theme_card = GlassCard("Тема оформления", "Тёмная, светлая или как в Windows", "palette", p)
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(QLabel("Тема"))
         self.dark_button = QPushButton("Тёмная")
         self.light_button = QPushButton("Светлая")
+        self.auto_button = QPushButton("Как в Windows")
         theme_group = QButtonGroup(self)
         theme_group.setExclusive(True)
-        for index, button in enumerate((self.dark_button, self.light_button)):
+        for index, button in enumerate((self.dark_button, self.light_button, self.auto_button)):
             button.setCheckable(True)
             button.setProperty("variant", "chip")
             button.setCursor(Qt.PointingHandCursor)
             theme_group.addButton(button, index)
             row.addWidget(button)
-        theme_group.idClicked.connect(lambda index: self._set_theme("dark" if index == 0 else "light"))
+        theme_group.idClicked.connect(lambda index: self._set_theme(
+            ("dark", "light", "auto")[index]))
         row.addStretch(1)
         reset = QPushButton("Сбросить оформление")
         reset.setProperty("variant", "ghost")
@@ -652,22 +654,27 @@ class SettingsPage(Page):
                 log.exception("Не удалось применить видео-фон")
 
     def _set_theme(self, name: str) -> None:
-        defaults = theme.THEMES.get(name, theme.THEMES["dark"])
-        self.ctx.settings.update("appearance", {
-            "theme": name,
-            "bg": defaults["bg"],
-            "bg2": defaults["bg2"],
-            "text": defaults["text"],
-            "muted": defaults["muted"],
-        })
+        if name == "auto":
+            # "auto" resolves the palette on every apply — no manual overrides.
+            self.ctx.settings.update("appearance", {"theme": "auto"})
+        else:
+            defaults = theme.THEMES.get(name, theme.THEMES["dark"])
+            self.ctx.settings.update("appearance", {
+                "theme": name,
+                "bg": defaults["bg"],
+                "bg2": defaults["bg2"],
+                "text": defaults["text"],
+                "muted": defaults["muted"],
+            })
         self.ctx.apply_theme()
         self._refresh_theme_buttons()
         self._apply_background()
 
     def _refresh_theme_buttons(self) -> None:
-        is_dark = str(self.ctx.settings.get("appearance.theme", "dark")) != "light"
-        self.dark_button.setChecked(is_dark)
-        self.light_button.setChecked(not is_dark)
+        current = str(self.ctx.settings.get("appearance.theme", "dark"))
+        self.dark_button.setChecked(current == "dark")
+        self.light_button.setChecked(current == "light")
+        self.auto_button.setChecked(current == "auto")
 
     def _reset_appearance(self) -> None:
         def _reset() -> None:

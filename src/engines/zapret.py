@@ -349,12 +349,14 @@ class ZapretEngine(BaseEngine):
     title = "Zapret"
     strategy_started = Signal(str)
     gamefilter_state = Signal(str)
+    watchdog_event = Signal(str, str)  # kind, message
     active_strategy: str | None = None
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         # Game filter watchdog: "" | "paused" | "started" — what we changed.
         self._gf_hold = ""
+        self._watchdog_attempts = 0
         self._gf_timer = QTimer(self)
         self._gf_timer.setInterval(3000)
         self._gf_timer.timeout.connect(self._gamefilter_tick)
@@ -468,6 +470,42 @@ class ZapretEngine(BaseEngine):
         return winapi.find_processes("winws.exe")
 
     # ------------------------------------------------------------------ start
+    def _on_exit(self, code: int) -> None:
+        """Watchdog: auto-restart winws when it crashed unexpectedly."""
+        if self._intentional_stop:
+            self._watchdog_attempts = 0
+            super()._on_exit(code)
+            return
+        watchdog = bool(settings.get("zapret.watchdog", True))
+        previous = self.active_strategy
+        if watchdog and code != 0 and self._watchdog_attempts < 3:
+            self._watchdog_attempts += 1
+            QTimer.singleShot(2500, self._watchdog_restart)
+            return
+        super()._on_exit(code)
+        if code != 0 and watchdog and previous:
+            self.watchdog_event.emit("err",
+                "Zapret упал больше трёх раз подряд — авто-перезапуск отключён")
+
+    def _watchdog_restart(self) -> None:
+        if self.status in {"running", "starting", "stopping"}:
+            return  # user-restarted already
+        if not winapi.is_admin() or not self.is_available():
+            self._set_status("error", "Zapret упал и не может быть перезапущен "
+                                      "(нет прав администратора или движка)")
+            self.watchdog_event.emit("err", "Zapret упал — не удалось перезапустить")
+            return
+        log.warning("Watchdog: перезапуск winws.exe (попытка %s)", self._watchdog_attempts)
+        try:
+            self.start_with()
+        except Exception as exc:
+            log.warning("Watchdog не перезапустил Zapret: %s", exc)
+            self.watchdog_event.emit("err", f"Zapret упал — перезапуск не удался: {exc}")
+            return
+        self.watchdog_event.emit("warn",
+            f"winws.exe упал — Zapret автоматически перезапущен "
+            f"(попытка {self._watchdog_attempts} из 3)")
+
     def start_with(self, filename: str | None = None) -> None:
         if self.running:
             raise EngineError("Zapret уже запущен", "already_running")
@@ -515,6 +553,7 @@ class ZapretEngine(BaseEngine):
             )
         settings.set("zapret.strategy", strategy.filename, save=True)
         self.active_strategy = strategy.filename
+        self._watchdog_attempts = 0
         self._set_status("running", f"{strategy.name} · PID {pid}")
         self.strategy_started.emit(strategy.name)
         self.log_line.emit(f"[Zentrix] Стратегия: {strategy.name}")

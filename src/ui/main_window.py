@@ -293,6 +293,8 @@ class MainWindow(QMainWindow):
         self.ctx.theme_changed.connect(self._apply_theme)
         for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify):
             engine.status_changed.connect(self._on_engine_status)
+        self.ctx.zapret.watchdog_event.connect(
+            lambda kind, message: self.ctx.notify(message, kind, None))
 
         self._restore_geometry()
         self._install_shortcuts()
@@ -439,6 +441,26 @@ class MainWindow(QMainWindow):
         hide_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Z"), self)
         hide_shortcut.activated.connect(self.hide_to_tray)
         self._shortcuts.append(hide_shortcut)
+        palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        palette_shortcut.activated.connect(self.open_command_palette)
+        self._shortcuts.append(palette_shortcut)
+
+    def open_command_palette(self) -> None:
+        """Ctrl+K — quick search across pages and primary actions."""
+        from .command_palette import CommandPalette, default_entries
+
+        if not self.ctx.overlay:
+            return
+        if self.overlay.isVisible():
+            return
+        try:
+            entries = default_entries(self.ctx)
+            widget = CommandPalette(self.ctx, entries)
+            self.overlay.set_close_callback(None)
+            self.overlay.open_panel("Быстрые команды", widget, actions=None)
+            widget.search.setFocus()
+        except Exception:
+            log.exception("Не удалось открыть палитру команд")
 
     # ------------------------------------------------------------------- theme
     def _apply_theme(self) -> None:

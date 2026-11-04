@@ -36,6 +36,23 @@ else:  # pragma: no cover - only used by tests on non-Windows hosts
 
 
 # --------------------------------------------------------------------------- admin
+def system_uses_light_theme() -> bool:
+    """Read the Windows personalization setting (AppsUseLightTheme)."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            value, _type = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        return bool(value)
+    except OSError:
+        return False
+
+
 def is_admin() -> bool:
     if not IS_WINDOWS:
         return False

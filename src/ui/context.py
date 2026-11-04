@@ -13,6 +13,7 @@ from ..logger import get_logger
 from ..settings_store import settings as global_settings
 from ..sound_generator import SoundManager
 from ..netmon import TrafficMonitor
+from .runtime import RuntimeMonitor
 from . import theme
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -46,6 +47,11 @@ class AppContext(QObject):
         self._theme_timer.setSingleShot(True)
         self._theme_timer.setInterval(120)
         self._theme_timer.timeout.connect(self._apply_theme)
+        # Follow the Windows theme when appearance.theme == "auto".
+        self._theme_watch = QTimer(self)
+        self._theme_watch.setInterval(10_000)
+        self._theme_watch.timeout.connect(self._poll_system_theme)
+        self._theme_watch.start()
 
         self.zapret = ZapretEngine(self)
         self.happ = HappEngine(self)
@@ -55,6 +61,8 @@ class AppContext(QObject):
                              name=f"stale-{engine.key}").start()
 
         self.settings.subscribe(self._on_setting_changed)
+        self.runtime = RuntimeMonitor(self)
+        self.runtime.start()
 
     # ------------------------------------------------------------------ theme
     @property
@@ -86,6 +94,10 @@ class AppContext(QObject):
                     handler()
                 except Exception:
                     log.exception("on_theme упал")
+
+    def _poll_system_theme(self) -> None:
+        if str(self.settings.get("appearance.theme", "dark")) == "auto":
+            self._theme_timer.start()
 
     # ------------------------------------------------------------------- misc
     def navigate(self, key: str) -> None:
@@ -166,6 +178,10 @@ class AppContext(QObject):
         log.info("Завершение работы Zentrix")
         try:
             self.stop_monitor()
+        except Exception:
+            pass
+        try:
+            self.runtime.stop()
         except Exception:
             pass
         for engine in (self.zapret, self.happ, self.hiddify):

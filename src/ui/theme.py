@@ -7,6 +7,8 @@ from pathlib import Path
 
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 
+from .. import winapi
+
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
@@ -105,18 +107,39 @@ class Palette:
     @classmethod
     def from_settings(cls, settings) -> "Palette":
         data = settings.section("appearance")
-        theme = str(data.get("theme", "dark"))
-        defaults = THEMES.get(theme, THEMES["dark"])
+        theme_name = str(data.get("theme", "dark"))
+        if theme_name == "auto":
+            # Follow the Windows personalization setting; manual colour
+            # overrides are ignored so "auto" always looks consistent.
+            theme_name = "light" if winapi.system_uses_light_theme() else "dark"
+            defaults_auto = THEMES.get(theme_name, THEMES["dark"])
+            return cls(
+                theme=theme_name,
+                bg=defaults_auto["bg"],
+                bg2=defaults_auto["bg2"],
+                text=defaults_auto["text"],
+                muted=defaults_auto["muted"],
+                accent=str(data.get("accent") or "#7C5CFF"),
+                accent2=str(data.get("accent2") or "#22D3EE"),
+                surface="#FFFFFF" if theme_name == "dark" else "#FFFFFF",
+                border="#FFFFFF" if theme_name == "dark" else "#0F172A",
+                card_opacity=float(data.get("card_opacity", 0.62) or 0.62),
+                border_opacity=float(data.get("border_opacity", 0.10) or 0.10),
+                radius=int(data.get("radius", 18) or 18),
+                font_family=str(data.get("font_family", "Segoe UI") or "Segoe UI"),
+                font_size=int(data.get("font_size", 10) or 10),
+            )
+        defaults = THEMES.get(theme_name, THEMES["dark"])
         return cls(
-            theme=theme,
+            theme=theme_name,
             bg=str(data.get("bg") or defaults["bg"]),
             bg2=str(data.get("bg2") or defaults["bg2"]),
             text=str(data.get("text") or defaults["text"]),
             muted=str(data.get("muted") or defaults["muted"]),
             accent=str(data.get("accent") or "#7C5CFF"),
             accent2=str(data.get("accent2") or "#22D3EE"),
-            surface="#FFFFFF" if theme == "dark" else "#FFFFFF",
-            border="#FFFFFF" if theme == "dark" else "#0F172A",
+            surface="#FFFFFF" if theme_name == "dark" else "#FFFFFF",
+            border="#FFFFFF" if theme_name == "dark" else "#0F172A",
             card_opacity=float(data.get("card_opacity", 0.62) or 0.62),
             border_opacity=float(data.get("border_opacity", 0.10) or 0.10),
             radius=int(data.get("radius", 18) or 18),
