@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 
 from ...engines.base import EngineError
 from ...logger import get_logger
-from ... import net
+from ... import net, nettools
 from .. import flags, overlays, theme
 from ..widgets import (
     Badge, Divider, GlassCard, IconButton, IconOrb, LogView, PrimaryButton, StatTile,
@@ -157,6 +157,15 @@ class ProxyPage(Page):
         self.fetch_button.clicked.connect(self._fetch_subscription)
         subscription_row.addWidget(self.fetch_button)
         servers.add_layout(subscription_row)
+        self.sub_auto_row = ToggleRow(
+            "Авто-обновление подписки",
+            "Обновлять список серверов в фоне каждые N часов",
+            bool(self.ctx.settings.get(f"{self.engine.ns}.sub_auto", False)), p,
+        )
+        self.sub_auto_row.toggled.connect(
+            lambda value: self.ctx.settings.set(f"{self.engine.ns}.sub_auto", bool(value))
+        )
+        servers.add(self.sub_auto_row)
         self.links_edit = QPlainTextEdit()
         self.links_edit.setPlaceholderText("vless://…\nvmess://…\n(по одной ссылке на строку)")
         self.links_edit.setFixedHeight(92)
@@ -222,6 +231,14 @@ class ProxyPage(Page):
         latency_button.setIcon(icon("activity", p.accent, 18))
         latency_button.clicked.connect(self._measure_latency)
         params.add(latency_button)
+        ping_servers = QPushButton("Ping серверов")
+        ping_servers.setIcon(icon("globe", p.accent, 18))
+        ping_servers.clicked.connect(self._ping_servers)
+        params.add(ping_servers)
+        best = QPushButton("Выбрать самый быстрый")
+        best.setIcon(icon("bolt", p.accent, 18))
+        best.clicked.connect(self._select_best_node)
+        params.add(best)
         params.addStretch(1)
         body.addWidget(params, 2)
         self.add_layout(body)
@@ -257,6 +274,53 @@ class ProxyPage(Page):
             self.core_card.show()
         self.hero.setVisible(True)
 
+    def _ping_servers(self) -> None:
+        """Measure TCP connect time to every server in the profile."""
+        nodes = self.engine.nodes()
+        if not nodes:
+            self.ctx.notify("Список серверов пуст", "warn")
+            return
+        targets = [(index, node) for index, node in enumerate(nodes)]
+        self._node_latency: dict[int, int | None] = {}
+
+        def worker() -> dict[int, int | None]:
+            result: dict[int, int | None] = {}
+            for index, node in targets:
+                outcome = nettools.tcp_ping(node.server, int(node.port))
+                result[index] = int(outcome["ms"]) if outcome and outcome.get("ok") else None
+            return result
+
+        def done(latencies: dict[int, int | None]) -> None:
+            self._node_latency = latencies
+            row_labels: list[str] = []
+            for index, (key, value) in enumerate(latencies.items()):
+                row_labels.append(f"{index + 1}. {value if value is not None else '—'} мс")
+            text = " · ".join(row_labels[:6])
+            if len(row_labels) > 6:
+                text += f" … (всего {len(row_labels)})"
+            self.ctx.notify(f"Проверены ping всех серверов: {text}", "info", None)
+            self._reload_nodes()
+
+        run_task(self, worker, on_done=done,
+                 on_error=lambda message: self.ctx.notify(
+                     f"Не удалось проверить ping: {message}", "err", "error"))
+
+    def _select_best_node(self) -> None:
+        latencies = getattr(self, "_node_latency", None)
+        if not latencies:
+            self.ctx.notify("Сначала выполните «Ping серверов»", "warn")
+            return
+        reachable = {index: ms for index, ms in latencies.items() if ms is not None}
+        if not reachable:
+            self.ctx.notify("Ни один сервер не отвечает", "err", "error")
+            return
+        best_index = min(reachable, key=reachable.get)
+        self.engine.select_node(best_index)
+        self._reload_nodes(select=best_index)
+        self.ctx.notify(
+            f"Выбран сервер {best_index + 1} — задержка {reachable[best_index]} мс",
+            "ok", "update")
+
     def on_theme(self) -> None:
         p = self.ctx.palette
         self.orb.set_palette(p)
@@ -267,13 +331,16 @@ class ProxyPage(Page):
         nodes = self.engine.nodes()
         self.nodes.blockSignals(True)
         self.nodes.clear()
-        for node in nodes:
+        for index, node in enumerate(nodes):
             label = flags.strip_flag_emoji(node.label)
-            item = QListWidgetItem(f"{label}   ·   {node.summary()}")
+            latency = getattr(self, "_node_latency", {}).get(index) if hasattr(self, "_node_latency") else None
+            suffix = f"   ·   {latency} мс" if latency is not None else ""
+            item = QListWidgetItem(f"{label}   ·   {node.summary()}{suffix}")
             item.setData(Qt.UserRole, node.summary())
             node_icon = flags.flag_icon(flags.detect_country(node.label), 16)
             if node_icon is None:
                 node_icon = icon("globe", self.ctx.palette.muted, 16)
+            item.setIcon(node_icon)
             item.setIcon(node_icon)
             self.nodes.addItem(item)
         index = self.engine.selected_index() if select is None else select

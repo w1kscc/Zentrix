@@ -6,8 +6,10 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
-    QFileDialog, QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget,
+    QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout,
+    QWidget,
 )
 
 from ... import constants, paths, winapi
@@ -23,6 +25,57 @@ from .base_page import Page, page_heading
 log = get_logger("blockcheck-page")
 
 KIND = {"ok": "ok", "blocked": "err", "unstable": "warn", "error": "warn", "pending": "muted"}
+
+
+class HistoryChart(QWidget):
+    """Stacked availability bars painted from a the check-history timeline."""
+
+    def __init__(self, palette_obj: theme.Palette, parent=None) -> None:
+        super().__init__(parent)
+        self._palette = palette_obj
+        self._buckets: list[dict] = []
+
+    def set_palette(self, palette_obj: theme.Palette) -> None:
+        self._palette = palette_obj
+        self.update()
+
+    def set_data(self, buckets: list[dict]) -> None:
+        self._buckets = buckets
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        p = self._palette
+        width, height = self.width(), self.height()
+        bar_count = max(1, len(self._buckets))
+        gap = 3
+        bar_width = max(2.0, (width - gap * (bar_count - 1)) / bar_count)
+        peak = max((b.get("ok", 0) + b.get("blocked", 0) + b.get("other", 0))
+                   for b in self._buckets) if self._buckets else 0
+        peak = max(1, peak)
+        for index, bucket in enumerate(self._buckets or []):
+            x = index * (bar_width + gap)
+            total = bucket.get("ok", 0) + bucket.get("blocked", 0) + bucket.get("other", 0)
+            if not total:
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(theme.qcolor(p.muted, 0.14))
+                painter.drawRoundedRect(int(x), int(height - 6), int(bar_width), 6, 2, 2)
+                continue
+            offset = 0
+            for key, colour, alpha in (
+                ("blocked", p.danger, 0.75), ("other", p.warning, 0.55), ("ok", p.success, 0.9),
+            ):
+                count = bucket.get(key, 0)
+                if not count:
+                    continue
+                segment = (height - 2) * count / peak
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(theme.qcolor(colour, alpha))
+                painter.drawRoundedRect(int(x), int(height - 2 - offset - segment),
+                                        int(bar_width), int(segment + 0.5), 2, 2)
+                offset += segment
+        painter.end()
 
 
 class ServiceRow(QWidget):
@@ -164,6 +217,27 @@ class BlockCheckPage(Page):
             services_card.add(row)
         self.add(services_card)
 
+        history_card = GlassCard("История проверок", "Что происходило за последние 7 дней",
+                                 "activity", p)
+        history_row = QHBoxLayout()
+        history_row.setSpacing(10)
+        self.history_combo = QComboBox()
+        self.history_combo.setMinimumWidth(220)
+        self.history_combo.currentIndexChanged.connect(lambda _i: self._refresh_history())
+        history_row.addWidget(self.history_combo, 1)
+        self.history_ratio = QLabel("—")
+        self.history_ratio.setObjectName("h2")
+        history_row.addWidget(self.history_ratio)
+        history_card.add_layout(history_row)
+        self.history_chart = HistoryChart(p)
+        self.history_chart.setMinimumHeight(96)
+        history_card.add(self.history_chart)
+        self.history_hint = QLabel("Как только пройдёт первая проверка, здесь появится график.")
+        self.history_hint.setObjectName("tiny")
+        self.history_hint.setWordWrap(True)
+        history_card.add(self.history_hint)
+        self.add(history_card)
+
         tools = QHBoxLayout()
         tools.setSpacing(8)
         self.copy_button = QPushButton("Копировать отчёт")
@@ -206,11 +280,54 @@ class BlockCheckPage(Page):
     def on_show(self) -> None:
         if self._results:
             self._update_summary()
+        self._refresh_history()
+
+    def _refresh_history(self) -> None:
+        runtime = getattr(self.ctx, "runtime", None)
+        if runtime is None:
+            return
+
+        def load() -> tuple[dict, str, list[dict]]:
+            services: dict[str, dict] = runtime.history.availability(days=7)
+            service_id = self.history_combo.currentData()
+            if service_id not in services:
+                service_id = next(iter(services), None)
+            timeline = runtime.history.service_timeline(service_id, days=7) if service_id else []
+            return services, service_id or "", timeline
+
+        def done(payload: tuple[dict, str, list[dict]]) -> None:
+            services, service_id, timeline = payload
+            current_items = [self.history_combo.itemData(i) for i in
+                             range(self.history_combo.count())]
+            if sorted(current_items) != sorted(services):
+                self.history_combo.blockSignals(True)
+                self.history_combo.clear()
+                for service_id_key, data in services.items():
+                    self.history_combo.addItem(str(self._rows.get(service_id_key).service["name"]
+                                                   if self._rows.get(service_id_key)
+                                                   else service_id_key), service_id_key)
+                if service_id:
+                    index = self.history_combo.findData(service_id)
+                    if index >= 0:
+                        self.history_combo.setCurrentIndex(index)
+                self.history_combo.blockSignals(False)
+            data = services.get(service_id or "", {})
+            ratio = float(data.get("ratio", 0) or 0)
+            self.history_ratio.setText(f"{ratio * 100:.0f}%" if data else "—")
+            self.history_chart.set_data(timeline)
+            self.history_hint.setText(
+                "Данные сохраняются локально (cache.db) · количество проверок: "
+                f"{int(data.get('total', 0) or 0)}"
+                if data else
+                "Как только пройдёт первая проверка, здесь появится график.")
+
+        run_task(self, load, on_done=done, on_error=lambda _m: None)
 
     def on_theme(self) -> None:
         p = self.ctx.palette
         for row in self._rows.values():
             row.set_palette(p)
+        self.history_chart.set_palette(p)
         self.copy_button.setIcon(icon("copy", p.accent, 18))
         self.export_txt_button.setIcon(icon("download", p.accent, 18))
         self.export_json_button.setIcon(icon("download", p.accent, 18))
@@ -268,6 +385,19 @@ class BlockCheckPage(Page):
         self._runner = None
         ordered = [result for result in results if isinstance(result, ServiceResult)]
         self.ctx.block_results = ordered
+        if not ordered:
+            ordered = list(self._results.values())
+        for result in ordered:
+            row = self._rows.get(result.id)
+            if row:
+                row.set_result(result)
+        runtime = getattr(self.ctx, "runtime", None)
+        if runtime is not None and ordered:
+            try:
+                runtime.register_service_results(ordered)
+            except Exception:
+                log.exception("Не удалось записать историю проверок")
+            self._refresh_history()
         if not ordered:
             ordered = list(self._results.values())
         for result in ordered:

@@ -13,6 +13,7 @@ from ..logger import get_logger
 from ..settings_store import settings as global_settings
 from ..sound_generator import SoundManager
 from ..netmon import TrafficMonitor
+from .game_mode import GameModeMonitor
 from .runtime import RuntimeMonitor
 from . import theme
 
@@ -63,6 +64,7 @@ class AppContext(QObject):
         self.settings.subscribe(self._on_setting_changed)
         self.runtime = RuntimeMonitor(self)
         self.runtime.start()
+        self.game_mode = GameModeMonitor(self)
 
     # ------------------------------------------------------------------ theme
     @property
@@ -182,6 +184,10 @@ class AppContext(QObject):
             pass
         try:
             self.runtime.stop()
+        except Exception:
+            pass
+        try:
+            self.game_mode.shutdown()
         except Exception:
             pass
         for engine in (self.zapret, self.happ, self.hiddify):

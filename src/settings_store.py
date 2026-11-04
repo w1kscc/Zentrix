@@ -95,6 +95,10 @@ DEFAULTS: dict[str, Any] = {
         "interval": 1.0,
         "show_connections": True,
     },
+    "games": {
+        "mode": False,
+        "exes": [],
+    },
     "network": {
         "ip_alert": True,
         "sub_interval_hours": 12,

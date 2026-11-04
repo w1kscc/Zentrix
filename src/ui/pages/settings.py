@@ -9,7 +9,7 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFontComboBox, QGridLayout,
-    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QPushButton,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QPushButton,
     QVBoxLayout, QWidget,
 )
 
@@ -60,6 +60,7 @@ SECTIONS = (
     ("appearance", "Оформление", "palette"),
     ("sounds", "Звук", "volume"),
     ("engines", "Движки", "cpu"),
+    ("automation", "Автоматизация", "bolt"),
     ("maintenance", "Обслуживание", "trash"),
     ("about", "О программе", "info"),
 )
@@ -116,6 +117,7 @@ class SettingsPage(Page):
             self._build_appearance(),
             self._build_sounds(),
             self._build_engines(),
+            self._build_automation(),
             self._build_maintenance(),
             self._build_about(),
         ]
@@ -441,6 +443,179 @@ class SettingsPage(Page):
         layout.addWidget(system_card)
         layout.addStretch(1)
         return page
+
+    # ------------------------------------------------------------ automation
+    def _build_automation(self) -> QWidget:
+        p = self.ctx.palette
+        page, layout = self._page()
+
+        watch_card = GlassCard("Фон и оповещения", "Что Zentrix делает без вашего участия",
+                               "activity", p)
+        self.ip_alert_toggle = ToggleRow(
+            "Отслеживание внешнего IP",
+            "Уведомить, когда exit-IP сменится (важно для стабильности VPN)",
+            bool(self.ctx.settings.get("network.ip_alert", True)), p,
+        )
+        self.ip_alert_toggle.toggled.connect(
+            lambda value: self.ctx.settings.set("network.ip_alert", bool(value))
+        )
+        self._toggles.append(self.ip_alert_toggle)
+        watch_card.add(self.ip_alert_toggle)
+        self.watchdog_toggle = ToggleRow(
+            "Watchdog Zapret",
+            "Если winws.exe упадёт — авто-перезапуск (до 3 попыток)",
+            bool(self.ctx.settings.get("zapret.watchdog", True)), p,
+        )
+        self.watchdog_toggle.toggled.connect(
+            lambda value: self.ctx.settings.set("zapret.watchdog", bool(value))
+        )
+        self._toggles.append(self.watchdog_toggle)
+        watch_card.add(self.watchdog_toggle)
+        self.sub_interval = SliderRow(
+            "Обновлять подписки каждые", 1, 24,
+            float(self.ctx.settings.get("network.sub_interval_hours", 12) or 12), " ч.", p,
+        )
+        self.sub_interval.value_changed.connect(
+            lambda value: self.ctx.settings.set("network.sub_interval_hours", int(round(value)))
+        )
+        watch_card.add(self.sub_interval)
+        sub_hint = QLabel("Таймер работает, только если включено «Авто-обновление "
+                          "подписки» на вкладке VPN.")
+        sub_hint.setObjectName("tiny")
+        sub_hint.setWordWrap(True)
+        watch_card.add(sub_hint)
+        layout.addWidget(watch_card)
+
+        rules_card = GlassCard("Сценарии «если → то»", "Автоматика на результатах проверок",
+                               "bolt", p)
+        self.rules_box = QVBoxLayout()
+        self.rules_box.setSpacing(6)
+        rules_card.add_layout(self.rules_box)
+        add_row = QHBoxLayout()
+        add_row.setSpacing(8)
+        add_button = PrimaryButton("Добавить сценарий", "bolt", p)
+        add_button.clicked.connect(self._add_rule)
+        add_row.addWidget(add_button)
+        add_row.addStretch(1)
+        rules_card.add_layout(add_row)
+        example = QLabel("Пример: «Если YouTube заблокирован → сменить стратегию».")
+        example.setObjectName("tiny")
+        example.setWordWrap(True)
+        rules_card.add(example)
+        layout.addWidget(rules_card)
+        layout.addStretch(1)
+        self._reload_rules()
+        return page
+
+    def _reload_rules(self) -> None:
+        from ... import rules as rules_lib
+
+        p = self.ctx.palette
+        while self.rules_box.count():
+            item = self.rules_box.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        user_rules = rules_lib.rules_from_json(
+            self.ctx.settings.get("network.rules", []) or [])
+        if not user_rules:
+            empty = QLabel("Сценариев нет")
+            empty.setObjectName("tiny")
+            self.rules_box.addWidget(empty)
+            return
+        for rule in user_rules:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(8)
+            toggle = ToggleRow(rule.title, "", bool(rule.enabled), p)
+            toggle.setFixedHeight(44)
+            toggle.toggled.connect(lambda checked, r=rule: self._rule_set_enabled(r.id, checked))
+            row_layout.addWidget(toggle, 1)
+            describe = QLabel(
+                f"{rules_lib.CONDITION_LABELS.get(rule.condition, rule.condition)}"
+                + (f" · {rule.value}" if rule.value else "")
+                + f" → {rules_lib.ACTION_LABELS.get(rule.action, rule.action)}")
+            describe.setObjectName("tiny")
+            row_layout.addWidget(describe, 2)
+            delete = QPushButton("Удалить")
+            delete.setProperty("variant", "chip")
+            delete.setFixedHeight(30)
+            delete.clicked.connect(lambda _=False, rid=rule.id: self._delete_rule(rid))
+            row_layout.addWidget(delete)
+            self.rules_box.addWidget(row)
+
+    def _persist_rules(self, user_rules) -> None:
+        from ... import rules as rules_lib
+
+        self.ctx.settings.set("network.rules", rules_lib.rules_to_json(user_rules))
+        self._reload_rules()
+
+    def _rule_set_enabled(self, rule_id: str, checked: bool) -> None:
+        from ... import rules as rules_lib
+
+        user_rules = rules_lib.rules_from_json(self.ctx.settings.get("network.rules", []) or [])
+        for rule in user_rules:
+            if rule.id == rule_id:
+                rule.enabled = bool(checked)
+        self._persist_rules(user_rules)
+
+    def _delete_rule(self, rule_id: str) -> None:
+        from ... import rules as rules_lib
+
+        user_rules = [rule for rule in
+                      rules_lib.rules_from_json(self.ctx.settings.get("network.rules", []) or [])
+                      if rule.id != rule_id]
+        self._persist_rules(user_rules)
+
+    def _add_rule(self) -> None:
+        from ... import rules as rules_lib
+        from ... import constants
+
+        condition, ok = QInputDialog.getItem(
+            self, "Новое условие", "Когда:", list(rules_lib.CONDITION_LABELS.values()), 0, False)
+        if not ok:
+            return
+        condition_key = next(key for key, label in rules_lib.CONDITION_LABELS.items()
+                             if label == condition)
+        value = ""
+        if condition_key in {"service_blocked", "service_ok"}:
+            service_map = {item["name"]: item["id"] for item in constants.SERVICES}
+            service, ok = QInputDialog.getItem(
+                self, "Сервис", "Какой сервис отслеживать:", list(service_map), 0, False)
+            if not ok:
+                return
+            value = service_map[service]
+        elif condition_key == "vpn_down":
+            pass
+        actions = [label for label in rules_lib.ACTION_LABELS.values()]
+        action, ok = QInputDialog.getItem(self, "Новое действие", "То:", actions, 0, False)
+        if not ok:
+            return
+        action_key = next(key for key, label in rules_lib.ACTION_LABELS.items()
+                          if label == action)
+        rule_value = value
+        if action_key == "set_strategy":
+            strategies = self.ctx.zapret.strategies()
+            names = [item.filename for item in strategies]
+            if not names:
+                self.ctx.notify("Стратегии Zapret не найдены", "warn")
+                return
+            name, ok = QInputDialog.getItem(self, "Стратегия", "Выберите:",
+                                            names, 0, False)
+            if not ok:
+                return
+            rule_value = name
+        elif action_key == "notify":
+            message, ok = QInputDialog.getText(self, "Текст уведомления", "Сообщение:")
+            if not ok:
+                return
+            rule_value = message
+        user_rules = rules_lib.rules_from_json(self.ctx.settings.get("network.rules", []) or [])
+        user_rules.append(rules_lib.Rule(
+            id=f"rule-{int(time.time())}", title=condition, condition=condition_key,
+            action=action_key, value=rule_value, enabled=True))
+        self._persist_rules(user_rules)
 
     # ----------------------------------------------------------- maintenance
     def _build_maintenance(self) -> QWidget:
