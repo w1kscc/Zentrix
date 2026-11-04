@@ -16,7 +16,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QTimer, Signal
 
-from .. import net, paths, winapi
+from .. import paths, winapi
 from ..logger import get_logger
 from ..settings_store import settings
 from .balancer import TCPBalancer
@@ -141,7 +141,7 @@ class ProxyEngine(BaseEngine):
                 "no_nodes",
             )
         primary, secondary = self.ports()
-        listen_host = self._share_host() if settings.get("vpn.share", False) else "127.0.0.1"
+        listen_host = "127.0.0.1"
         if self.core_kind == "xray":
             return links.xray_config(node, socks_port=primary, http_port=secondary,
                                      listen_host=listen_host)
@@ -159,18 +159,7 @@ class ProxyEngine(BaseEngine):
                                     listen_host=listen_host)
 
     @staticmethod
-    def _share_host() -> str:
-        addresses = net.lan_ipv4_addresses()
-        if not addresses:
-            raise EngineError("Не найден активный IPv4‑адрес локальной сети", "no_lan_ip")
-        return addresses[0]
-
-    @staticmethod
     def _display_host() -> str:
-        if settings.get("vpn.share", False):
-            addresses = net.lan_ipv4_addresses()
-            if addresses:
-                return addresses[0]
         return "127.0.0.1"
 
     def public_proxy(self) -> str:
@@ -233,11 +222,8 @@ class ProxyEngine(BaseEngine):
                 self._using_balancer = False
                 raise EngineError("Не удалось найти свободные порты для мульти‑прокси", "no_ports")
         ports_to_check = [primary, secondary, *self._backend_ports]
-        bind_host = self._share_host() if settings.get("vpn.share", False) else "127.0.0.1"
-        for index, port in enumerate(ports_to_check):
-            host = (bind_host if index == 0 or self.core_kind == "xray"
-                    else "127.0.0.1")
-            if not _port_free(port, host):
+        for port in ports_to_check:
+            if not _port_free(port):
                 self._using_balancer = False
                 raise EngineError(
                     f"Порт {port} уже занят другим приложением. Измените порт в настройках.",
@@ -430,94 +416,3 @@ class ProxyEngine(BaseEngine):
                 seen.add(candidate)
         if unique:
             self.set_profile_text("\n".join(unique))
-
-
-class ShareProxyEngine(BaseEngine):
-    """LAN proxy that hands traffic straight to the internet (no tunnel).
-
-    Used by "share via Zapret": the shared inbound runs on the installed
-    Xray / sing-box core with a direct outbound, so device traffic leaves
-    the PC as-is and the running winws.exe strategy processes it.
-    """
-
-    key = "share"
-    title = "Прокси раздачи"
-
-    @property
-    def core_kind(self) -> str:
-        return "singbox" if str(settings.get("vpn.core", "xray")) == "singbox" else "xray"
-
-    @property
-    def config_file(self) -> Path:
-        return paths.CONFIG_DIR / "share" / "config.json"
-
-    def _core_ns(self) -> str:
-        return "hiddify" if self.core_kind == "singbox" else "happ"
-
-    def core_path(self) -> Path | None:
-        return cores.find_core(self.core_kind,
-                               str(settings.get(f"{self._core_ns()}.core", "") or ""))
-
-    def core_installed(self) -> bool:
-        return self.core_path() is not None
-
-    def ports(self) -> tuple[int, int]:
-        if self.core_kind == "xray":
-            return (int(settings.get("happ.socks_port", 10808) or 10808),
-                    int(settings.get("happ.http_port", 10809) or 10809))
-        return (int(settings.get("hiddify.mixed_port", 2080) or 2080),
-                int(settings.get("hiddify.api_port", 9091) or 9091))
-
-    def _share_host(self) -> str:
-        addresses = net.lan_ipv4_addresses()
-        if not addresses:
-            raise EngineError("Не найден активный IPv4‑адрес локальной сети", "no_lan_ip")
-        return addresses[0]
-
-    def port_for(self, protocol: str) -> int:
-        primary, secondary = self.ports()
-        return secondary if protocol == "http" and self.core_kind == "xray" else primary
-
-    def start(self) -> None:
-        if self.running:
-            raise EngineError("Прокси раздачи уже запущен", "already_running")
-        core = self.core_path()
-        if core is None:
-            raise EngineError(
-                "Ядро не найдено — установите Xray или sing-box во вкладке VPN.",
-                "missing_core",
-            )
-        primary, secondary = self.ports()
-        host = self._share_host()
-        if self.core_kind == "xray":
-            config = links.direct_xray_config(socks_port=primary, http_port=secondary,
-                                              listen_host=host)
-        else:
-            config = links.direct_singbox_config(mixed_port=primary, listen_host=host)
-        self.config_file.parent.mkdir(parents=True, exist_ok=True)
-        self.config_file.write_text(json.dumps(config, ensure_ascii=False, indent=2),
-                                    encoding="utf-8")
-        self._set_status("starting", "Запуск прокси раздачи…")
-        self._intentional_stop = False
-        try:
-            pid = self.supervisor.start([str(core), "run", "-c", str(self.config_file)],
-                                        core.parent, pid_file=self._pid_file())
-        except EngineError as exc:
-            self._set_status("error", str(exc))
-            raise
-        time.sleep(0.45)
-        if not self.supervisor.running:
-            self._set_status("error", "Прокси раздачи завершился сразу после запуска")
-            raise EngineError(
-                "Прокси раздачи не запустился. Возможно, порт занят VPN‑движком.",
-                "core_exited",
-            )
-        self._set_status("running", f"Раздача · PID {pid}")
-        self.log_line.emit(f"[Zentrix] Прокси раздачи: {host}:{primary} (direct, без туннеля)")
-
-    def stop(self) -> None:
-        self._intentional_stop = True
-        self._set_status("stopping", "Остановка прокси раздачи…")
-        self.supervisor.stop()
-        self._pid_file().unlink(missing_ok=True)
-        self._set_status("stopped", "Прокси раздачи остановлен")

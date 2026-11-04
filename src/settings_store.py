@@ -85,8 +85,6 @@ DEFAULTS: dict[str, Any] = {
     "vpn": {
         "core": "xray",
         "multiproxy": False,
-        "share": False,
-        "share_route": "vpn",
     },
     "monitor": {
         "interval": 1.0,

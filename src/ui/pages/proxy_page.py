@@ -420,9 +420,6 @@ class ProxyPage(Page):
         self.port_a.setValue(primary)
         self.port_b.setValue(secondary)
         host = "127.0.0.1"
-        if self.ctx.settings.get("vpn.share", False):
-            addresses = net.lan_ipv4_addresses()
-            host = addresses[0] if addresses else "IP LAN не найден"
         self.port_hint.setText(
             f"Локальный прокси: {host}:{primary}" if self.engine.core_kind == "singbox"
             else f"SOCKS {host}:{primary} · HTTP {host}:{secondary}"

@@ -29,9 +29,9 @@ NAV = (
     ("home", "Главная", "home", ""),
     ("zapret", "Zapret", "bolt", ""),
     ("vpn", "VPN", "globe", ""),
-    ("proxy_share", "Шеринг", "wifi", ""),
-    ("monitor", "Мониторинг", "activity", ""),
     ("blockcheck", "Проверки", "target", ""),
+    ("tools", "Инструменты", "wrench", ""),
+    ("monitor", "Мониторинг", "activity", ""),
     ("updates", "Обновления", "download", ""),
     ("settings", "Настройки", "settings", ""),
 )
@@ -40,14 +40,14 @@ PAGE_MODULES = {
     "home": ("home", "HomePage"),
     "zapret": ("zapret", "ZapretPage"),
     "vpn": ("vpn", "VpnPage"),
-    "proxy_share": ("proxy_share", "ProxySharePage"),
-    "monitor": ("monitor", "MonitorPage"),
     "blockcheck": ("blockcheck", "BlockCheckPage"),
+    "tools": ("tools", "ToolsPage"),
+    "monitor": ("monitor", "MonitorPage"),
     "updates": ("updates", "UpdatesPage"),
     "settings": ("settings", "SettingsPage"),
 }
 
-NAV_GROUPS = ((0, 1, 2, 3), (4, 5), (6, 7))
+NAV_GROUPS = ((0, 1, 2), (3, 4, 5), (6, 7))
 
 
 class StatusDot(QWidget):
@@ -254,7 +254,7 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda _=False, k=key: self.navigate(k))
             self._nav_buttons[key] = button
             side.addWidget(button)
-            if index in (3, 5):
+            if index in (2, 5):
                 side.addSpacing(10)
         side.addStretch(1)
 
@@ -472,7 +472,7 @@ class MainWindow(QMainWindow):
     def _refresh_status(self) -> None:
         zapret = self.ctx.zapret.status == "running"
         proxy = any(engine.status == "running"
-                    for engine in (self.ctx.happ, self.ctx.hiddify, self.ctx.share))
+                    for engine in (self.ctx.happ, self.ctx.hiddify))
         if zapret and proxy:
             self.titlebar.set_status("Обход и прокси активны", "ok")
         elif zapret:
@@ -480,7 +480,7 @@ class MainWindow(QMainWindow):
         elif proxy:
             self.titlebar.set_status("Прокси активен", "info")
         elif any(engine.status in {"starting", "stopping"}
-                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify, self.ctx.share)):
+                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify)):
             self.titlebar.set_status("Подключение…", "info")
         else:
             self.titlebar.set_status("Обход выключен", "muted")

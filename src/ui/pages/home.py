@@ -149,7 +149,6 @@ class HomePage(Page):
         for key, title, icon_name, description in (
             ("zapret", "Zapret", "bolt", "DPI-обход через winws"),
             ("vpn", "VPN", "globe", "Общие профили · Xray / sing-box"),
-            ("proxy_share", "Шеринг", "wifi", "Подключение устройств в LAN · BETA"),
         ):
             card = GlassCard(title, description, icon_name, p)
             card.setMinimumHeight(150)
@@ -225,8 +224,6 @@ class HomePage(Page):
 
     def _status_refresh(self, key: str) -> None:
         self._refresh_engine(key)
-        if key == "vpn":
-            self._refresh_engine("proxy_share")
 
     # ------------------------------------------------------------------- live
     def on_show(self) -> None:
@@ -236,7 +233,7 @@ class HomePage(Page):
         pass
 
     def _refresh_all(self) -> None:
-        for key in ("zapret", "vpn", "proxy_share"):
+        for key in ("zapret", "vpn"):
             self._refresh_engine(key)
         self._refresh_hero()
         self._refresh_services()
@@ -258,15 +255,6 @@ class HomePage(Page):
         self.admin_notice.setVisible(not self.ctx.admin())
 
     def _refresh_engine(self, key: str) -> None:
-        if key == "proxy_share":
-            detail, badge, _button = self._engine_cards[key]
-            sharing = bool(self.ctx.settings.get("vpn.share", False))
-            active = any(engine.status == "running" for engine in (self.ctx.happ, self.ctx.hiddify))
-            badge.update_badge("РАЗДАЁТСЯ" if sharing and active else "ВЫКЛЮЧЕНО",
-                               "ok" if sharing and active else "muted")
-            detail.setText("Прокси доступен в локальной сети" if sharing and active else
-                           "Включите в разделе «Шеринг»")
-            return
         engine = (self.ctx.happ if self.ctx.settings.get("vpn.core", "xray") == "xray"
                   else self.ctx.hiddify) if key == "vpn" else self.ctx.zapret
         detail, badge, _button = self._engine_cards[key]
@@ -370,7 +358,7 @@ class HomePage(Page):
     def on_theme(self) -> None:
         p = self.ctx.palette
         self.orb.set_palette(p)
-        for key in ("zapret", "vpn", "proxy_share"):
+        for key in ("zapret", "vpn"):
             _detail, _badge, button = self._engine_cards[key]
             button.setIcon(self._icon("chevron"))
         self._refresh_hero()
