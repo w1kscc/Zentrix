@@ -127,6 +127,16 @@ DEFAULTS: dict[str, Any] = {
         "interval_hours": 12,
         "last_update": 0,
     },
+    "tgws": {
+        "enabled": False,
+        "port": 1443,
+        "host": "127.0.0.1",
+        "secret": "",
+        "dc_ip": ["2:149.154.167.220", "4:149.154.167.220"],
+        "cfproxy": True,
+        "h2": True,
+        "autostart": False,
+    },
     "freekeys": {
         "enabled": False,
         "last_search": 0,

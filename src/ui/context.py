@@ -9,6 +9,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 from .. import paths, scenarios as scenarios_mod, watchdog as watchdog_mod, winapi
 from ..engines import HappEngine, HiddifyEngine, ZapretEngine
+from ..engines.tgws import TgWsProxyEngine
 from ..logger import get_logger
 from ..settings_store import settings as global_settings
 from ..sound_generator import SoundManager
@@ -75,6 +76,7 @@ class AppContext(QObject):
         self.zapret = ZapretEngine(self)
         self.happ = HappEngine(self)
         self.hiddify = HiddifyEngine(self)
+        self.tgws = TgWsProxyEngine(self)
         for engine in (self.zapret, self.happ, self.hiddify):
             threading.Thread(target=engine.adopt_stale_pid, daemon=True,
                              name=f"stale-{engine.key}").start()
@@ -411,6 +413,9 @@ class AppContext(QObject):
         engine = self.hiddify if self.settings.get("vpn.core", "xray") == "singbox" else self.happ
         if self.settings.get(f"{engine.ns}.autostart", False) and engine.core_installed():
             threading.Thread(target=self._safe_start, args=(engine,), daemon=True).start()
+        if (self.settings.get("tgws.autostart", False)
+                and self.settings.get("tgws.enabled", False) and self.tgws.is_available()):
+            threading.Thread(target=self._safe_start, args=(self.tgws,), daemon=True).start()
 
     @staticmethod
     def _safe_start(engine) -> None:
@@ -434,7 +439,7 @@ class AppContext(QObject):
             self.stop_monitor()
         except Exception:
             pass
-        for engine in (self.zapret, self.happ, self.hiddify):
+        for engine in (self.zapret, self.happ, self.hiddify, self.tgws):
             try:
                 engine.cleanup()
             except Exception:

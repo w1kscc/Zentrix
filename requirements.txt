@@ -1,3 +1,7 @@
 # Zentrix runtime dependencies (Windows 10/11, 64-bit, Python 3.12).
 PySide6==6.12.0
 psutil==7.2.2
+# TG WS Proxy (vendored engine, imported in-process)
+httpx[http2]==0.28.1
+certifi
+cryptography

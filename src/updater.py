@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import constants, net, paths
+from .engines.tgws import core_available as tgws_core_available
+from .engines.tgws import engine_root as tgws_engine_root
+from .engines.tgws import vendored_version as tgws_vendored_version
 from .logger import get_logger
 from .settings_store import settings
 
@@ -65,6 +68,16 @@ COMPONENTS = {
         "license": "CC BY-NC-SA 4.0",
         "url": "https://github.com/hiddify/hiddify-app",
     },
+    "tgwsproxy": {
+        "name": "TG WS Proxy",
+        "source": "tg-ws-proxy",
+        "repo": "Flowseal/tg-ws-proxy",
+        "keywords": [".zip"],
+        "exclude": ["windows_7", "arm64", ".exe"],
+        "kind": "engine",
+        "license": "MIT",
+        "url": "https://github.com/Flowseal/tg-ws-proxy",
+    },
     "zentrix": {
         "name": "Zentrix",
         "source": "Zentrix",
@@ -87,6 +100,10 @@ def _installed_version(key: str) -> str:
         pass
     if key == "zapret" and (paths.ENGINES_DIR / "zapret" / "bin" / "winws.exe").exists():
         return constants.SOURCES["zapret"]["version"]
+    if key == "tgwsproxy":
+        if tgws_core_available():
+            return tgws_vendored_version() or "0"
+        return ""
     if key in {"happ", "hiddify"}:
         core_kind = "xray" if key == "happ" else "singbox"
         core_meta = paths.ENGINES_DIR / core_kind / "core" / "version.json"
@@ -129,12 +146,19 @@ def check(key: str) -> ComponentStatus:
         release = net.github_latest(repo)
         status.latest = release.version
         status.html_url = release.html_url
-        asset = net.pick_asset(release, meta["keywords"], exclude=meta["exclude"])
-        if asset is None and release.assets:
-            asset = release.assets[0]
-        if asset:
-            status.asset_name = asset.name
-            status.asset_url = asset.url
+        if key == "tgwsproxy":
+            # The engine is vendored in-process, so updates install the tag's
+            # source archive instead of any release binary.
+            tag = release.tag or release.version
+            status.asset_name = f"tg-ws-proxy-{tag}.zip"
+            status.asset_url = (f"https://github.com/{repo}/archive/refs/tags/{tag}.zip")
+        else:
+            asset = net.pick_asset(release, meta["keywords"], exclude=meta["exclude"])
+            if asset is None and release.assets:
+                asset = release.assets[0]
+            if asset:
+                status.asset_name = asset.name
+                status.asset_url = asset.url
         status.has_update = not status.current or net.is_newer(status.latest, status.current)
         if release.name and release.name != release.tag:
             status.notes = release.name[:120]
@@ -204,6 +228,9 @@ def install(key: str, progress=None, cancel=None) -> dict:
     archive = download(key, progress=progress, cancel=cancel)
     stamp = time.strftime("%Y%m%d-%H%M%S")
     version = check(key).latest or "latest"
+
+    if key == "tgwsproxy":
+        return _install_tgwsproxy(archive, meta, version, stamp)
 
     if key == "zapret":
         if archive.suffix.lower() != ".zip":
@@ -278,6 +305,51 @@ def install(key: str, progress=None, cancel=None) -> dict:
             "message": f"{meta['name']} {version} загружен в engines/{key}/vendor. "
                        "Распространяется как отдельный установщик — автоматической "
                        "тихой установки нет, запустите его вручную."}
+
+
+def _install_tgwsproxy(archive: Path, meta: dict, version: str, stamp: str) -> dict:
+    """Vendored-source update: validate, atomically replace engines/tgwsproxy."""
+    _validate_zip(archive)
+    previous_version = installed_version("tgwsproxy")
+    staging = paths.TEMP_DIR / f"tgwsproxy-{stamp}"
+    _extract(archive, staging)
+    root = staging
+    if not (root / "proxy" / "tg_ws_proxy.py").exists():
+        candidates = list(staging.glob("*/proxy/tg_ws_proxy.py"))
+        if not candidates:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise RuntimeError("В архиве не найден proxy/tg_ws_proxy.py")
+        root = candidates[0].parent.parent
+    target = tgws_engine_root()
+    backup = paths.ENGINES_DIR / f"tgwsproxy.old-{stamp}"
+    if target.exists():
+        target.rename(backup)
+    try:
+        # Copy only what the core needs; drop upstream packaging/tests/UI.
+        shutil.copytree(root, target)
+        if not (target / "proxy" / "tg_ws_proxy.py").exists():
+            raise RuntimeError("После распаковки proxy/tg_ws_proxy.py отсутствует")
+        (target / "version.json").write_text(
+            json.dumps({"version": version, "repo": meta["repo"]}, indent=2),
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        log.error("Обновление TG WS Proxy не удалось, откат: %s", exc)
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+        if backup.exists():
+            backup.rename(target)
+        shutil.rmtree(staging, ignore_errors=True)
+        raise RuntimeError(
+            f"Обновление TG WS Proxy отменено, старая версия восстановлена: {exc}")
+    shutil.rmtree(backup, ignore_errors=True)
+    shutil.rmtree(staging, ignore_errors=True)
+    _cleanup_archive(archive)
+    log.info("TG WS Proxy обновлён: %s -> %s (репозиторий %s)",
+             previous_version or "неизвестно", version, meta["repo"])
+    return {"mode": "engine", "path": target, "backup": backup,
+            "message": f"TG WS Proxy обновлён до {version}"
+                       + (f" (было {previous_version})" if previous_version else "")}
 
 
 def _cleanup_archive(archive: Path) -> None:

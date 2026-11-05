@@ -297,7 +297,7 @@ class MainWindow(QMainWindow):
         self.ctx.tray = self.tray
 
         self.ctx.theme_changed.connect(self._apply_theme)
-        for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify):
+        for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify, self.ctx.tgws):
             engine.status_changed.connect(self._on_engine_status)
 
         self._restore_geometry()
@@ -479,7 +479,7 @@ class MainWindow(QMainWindow):
     def _refresh_status(self) -> None:
         zapret = self.ctx.zapret.status == "running"
         proxy = any(engine.status == "running"
-                    for engine in (self.ctx.happ, self.ctx.hiddify))
+                    for engine in (self.ctx.happ, self.ctx.hiddify, self.ctx.tgws))
         if zapret and proxy:
             self.titlebar.set_status("Обход и прокси активны", "ok")
         elif zapret:
@@ -487,7 +487,8 @@ class MainWindow(QMainWindow):
         elif proxy:
             self.titlebar.set_status("Прокси активен", "info")
         elif any(engine.status in {"starting", "stopping"}
-                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify)):
+                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify,
+                                self.ctx.tgws)):
             self.titlebar.set_status("Подключение…", "info")
         else:
             self.titlebar.set_status("Обход выключен", "muted")

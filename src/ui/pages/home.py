@@ -200,6 +200,8 @@ class HomePage(Page):
         self.vpn_pill = StatusPill("VPN", p)
         pills.addWidget(self.zapret_pill, 1)
         pills.addWidget(self.vpn_pill, 1)
+        self.tgws_pill = StatusPill("TG Proxy", p)
+        pills.addWidget(self.tgws_pill, 1)
         status_card.add_layout(pills)
         top.addWidget(status_card, 3)
 
@@ -287,7 +289,7 @@ class HomePage(Page):
         return icon(name, self.ctx.palette.accent, 18)
 
     def _connect(self) -> None:
-        for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify):
+        for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify, self.ctx.tgws):
             engine.status_changed.connect(lambda *_a: self._refresh_hero())
             engine.log_line.connect(lambda *_: None)
 
@@ -335,6 +337,13 @@ class HomePage(Page):
             (node.summary() if node else "Подключено") if vpn_running else "Выключен",
         )
         self.game_button.setChecked(self._game_mode_active())
+        tgws = self.ctx.tgws
+        tg_on = tgws.status == "running"
+        self.tgws_pill.set_state(
+            tg_on,
+            (f"Работает · порт {self.ctx.settings.get('tgws.port', 1443)}") if tg_on
+            else ("Ошибка" if tgws.status == "error" else "Выключен"),
+        )
 
     # -------------------------------------------------------------- strategy
     def _load_strategies(self) -> None:
@@ -517,6 +526,6 @@ class HomePage(Page):
     def on_theme(self) -> None:
         p = self.ctx.palette
         self.orb.set_palette(p)
-        for pill in (self.zapret_pill, self.vpn_pill):
+        for pill in (self.zapret_pill, self.vpn_pill, self.tgws_pill):
             pill.set_palette(p)
         self._refresh_hero()
