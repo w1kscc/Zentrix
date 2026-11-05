@@ -34,8 +34,6 @@ ACTION_COMMANDS = (
             action="check_blocks"),
     Command("act:repair_network", "Починить сеть", "flushdns, Winsock, сброс IP-стека",
             action="repair_network"),
-    Command("act:toggle_game_mode", "Игровой режим", "Приоритет игр + максимальная мощность",
-            action="toggle_game_mode"),
     Command("act:check_updates", "Проверить обновления", "Все компоненты",
             page="updates", action="check_updates"),
     Command("act:cleaner", "Очистка временных файлов", "Кэши и загрузки",

@@ -115,10 +115,6 @@ DEFAULTS: dict[str, Any] = {
     "watchdog": {
         "enabled": True,
     },
-    "gamemode": {
-        "enabled": False,
-        "games": [],
-    },
     "scenarios": {
         "rules": [],
     },

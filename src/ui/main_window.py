@@ -640,18 +640,6 @@ class MainWindow(QMainWindow):
                              title for _key, title, ok in rows if ok) or "готово", "ok"),
                      on_error=lambda message: self.ctx.notify(f"Не удалось починить сеть: {message}",
                                                               "err", "error"))
-        elif action == "toggle_game_mode":
-            from .. import game_mode
-
-            mode = game_mode.instance()
-            if mode.active:
-                self.ctx.notify(mode.disable(), "info")
-            else:
-                games = list(self.ctx.settings.section("gamemode").get("games", [])
-                             or ["csgo", "cs2", "valorant", "dota2", "fortnite"])
-                run_task(self, lambda: mode.enable(games),
-                         on_done=lambda message: self.ctx.notify(message, "ok"),
-                         on_error=lambda message: self.ctx.notify(message, "err", "error"))
         elif action == "check_updates":
             self.navigate("updates")
             page = self._pages.get("updates")

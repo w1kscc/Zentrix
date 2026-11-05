@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 
-from src import free_keys, game_mode, nettools
+from src import free_keys, nettools
 
 
 def test_dns_presets_shape():
@@ -48,12 +48,6 @@ def test_tcp_ping_localhost():
     assert latency is not None and latency >= 0
     server.close()
     assert nettools.tcp_ping("127.0.0.1", 1, timeout=0.2) is None
-
-
-def test_parse_active_scheme():
-    output = "GUID 381b4222-f694-41f0-9685-ff5bb260df2e  (Сбалансированный)"
-    assert game_mode.parse_active_scheme(output) == "381b4222-f694-41f0-9685-ff5bb260df2e"
-    assert game_mode.parse_active_scheme("no guid here") == ""
 
 
 def test_decode_base64_subscription():

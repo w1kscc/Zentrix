@@ -219,12 +219,6 @@ class HomePage(Page):
         self.repair_button.setToolTip("flushdns, сброс Winsock и IP-стека, очистка кэша Zentrix")
         self.repair_button.clicked.connect(self._repair_network)
         fix_card.add(self.repair_button)
-        self.game_button = QPushButton("Игровой режим")
-        self.game_button.setIcon(self._icon("cpu"))
-        self.game_button.setCheckable(True)
-        self.game_button.setToolTip("Высокий приоритет игр и план питания «Максимальная производительность»")
-        self.game_button.clicked.connect(self._toggle_game_mode)
-        fix_card.add(self.game_button)
         top.addWidget(fix_card, 2)
         self.add_layout(top)
 
@@ -310,13 +304,6 @@ class HomePage(Page):
     def on_hide(self) -> None:
         pass
 
-    def _game_mode_active(self) -> bool:
-        try:
-            from ... import game_mode
-            return game_mode.instance().active
-        except Exception:
-            return False
-
     def _tgws_on(self) -> bool:
         try:
             return self.ctx.tgws.status == "running"
@@ -375,7 +362,6 @@ class HomePage(Page):
             vpn_running,
             (node.summary() if node else "Подключено") if vpn_running else "Выключен",
         )
-        self.game_button.setChecked(self._game_mode_active())
         tgws = self.ctx.tgws
         tg_on = tgws.status == "running"
         self.tgws_pill.set_state(
@@ -473,24 +459,6 @@ class HomePage(Page):
                 self.ctx.notify("Сеть починена: DNS-кэш, Winsock и IP-стек сброшены", "ok")
         else:
             self.ctx.notify("Не удалось починить сеть", "err", "error")
-
-    def _toggle_game_mode(self, checked: bool) -> None:
-        from ... import game_mode
-
-        mode = game_mode.instance()
-        if checked:
-            games = list(self.ctx.settings.section("gamemode").get("games", [])
-                         or ["csgo", "cs2", "valorant", "dota2", "fortnite"])
-            run_task(self, lambda: mode.enable(games),
-                     on_done=lambda message: (self.ctx.notify(message, "ok"),
-                                              self.game_button.setChecked(True)),
-                     on_error=lambda message: (self.ctx.notify(message, "err", "error"),
-                                               self.game_button.setChecked(False)))
-        else:
-            run_task(self, mode.disable,
-                     on_done=lambda message: (self.ctx.notify(message, "info"),
-                                              self.game_button.setChecked(False)),
-                     on_error=lambda message: self.ctx.notify(message, "err", "error"))
 
     def _refresh_ip(self) -> None:
         from ... import ipwatch as module

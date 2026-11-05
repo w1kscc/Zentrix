@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QPushButton, QSpinBox, QVBoxLayout, QWidget,
 )
 
-from ... import game_mode, nettools
+from ... import nettools
 from ..widgets import Badge, GlassCard
 from ..workers import run_task
 from .base_page import Page, page_heading
@@ -127,32 +127,6 @@ class ToolsPage(Page):
         diag_card.add(self.diag_output, 1)
         self.add(diag_card)
 
-        # ---------------------------------------------------------- game mode
-        game_card = GlassCard("Игровой режим", "Приоритет процессам игр + план питания на максимум",
-                              "bolt", p)
-        game_row = QHBoxLayout()
-        self.game_mode_button = QPushButton("Включить игровой режим")
-        self.game_mode_button.setCheckable(True)
-        self.game_mode_button.clicked.connect(self._toggle_game_mode)
-        game_row.addWidget(self.game_mode_button)
-        self.game_mode_label = QLabel(
-            "Включается: высокий приоритет процессам игр и «Максимальная "
-            "производительность». Выключается: всё возвращается автоматически.")
-        self.game_mode_label.setObjectName("tiny")
-        self.game_mode_label.setWordWrap(True)
-        game_row.addWidget(self.game_mode_label, 1)
-        game_card.add_layout(game_row)
-        games_row = QHBoxLayout()
-        self.game_edit = QLineEdit()
-        self.game_edit.setPlaceholderText("имена процессов через запятую: cs2, valorant, dota2")
-        games_row.addWidget(self.game_edit, 1)
-        save_games = QPushButton("Сохранить список")
-        save_games.setProperty("variant", "chip")
-        save_games.clicked.connect(self._save_games)
-        games_row.addWidget(save_games)
-        game_card.add_layout(games_row)
-        self.add(game_card)
-
         self.finish()
 
     def _icon(self, name: str):
@@ -166,10 +140,6 @@ class ToolsPage(Page):
         for name in nettools.active_interfaces():
             self.interface_combo.addItem(name)
         self._load_hosts()
-        self.game_mode_button.setChecked(game_mode.instance().active)
-        games = list(self.ctx.settings.section("gamemode").get("games", []) or [])
-        if games and not self.game_edit.text().strip():
-            self.game_edit.setText(", ".join(games))
 
     def on_hide(self) -> None:
         pass
@@ -313,34 +283,6 @@ class ToolsPage(Page):
         if not rows:
             return "Порты не проверены"
         return " · ".join(f"{port}: {'открыт' if ok else 'закрыт'}" for port, ok in rows)
-
-    # -------------------------------------------------------------- game mode
-    def _toggle_game_mode(self, checked: bool) -> None:
-        mode = game_mode.instance()
-        if checked:
-            games = self._games()
-            run_task(self, lambda: mode.enable(games),
-                     on_done=lambda message: (self.game_mode_label.setText(message),
-                                              self.ctx.notify(message, "ok")),
-                     on_error=lambda message: self.game_mode_label.setText(f"Ошибка: {message}"))
-        else:
-            run_task(self, mode.disable,
-                     on_done=lambda message: (self.game_mode_label.setText(message),
-                                              self.ctx.notify(message, "info")),
-                     on_error=lambda message: self.game_mode_label.setText(f"Ошибка: {message}"))
-        self.game_mode_button.setChecked(game_mode.instance().active)
-
-    def _games(self) -> list[str]:
-        text = self.game_edit.text().strip()
-        if text:
-            return [part.strip() for part in text.split(",") if part.strip()]
-        return list(self.ctx.settings.section("gamemode").get("games", [])
-                    or ["csgo", "cs2", "valorant", "dota2", "fortnite"])
-
-    def _save_games(self) -> None:
-        games = self._games()
-        self.ctx.settings.update("gamemode", {"games": games}, save=True)
-        self.ctx.notify(f"Список игр сохранён ({len(games)})", "ok")
 
     # ------------------------------------------------------------------ misc
     def _admin_help(self) -> None:
