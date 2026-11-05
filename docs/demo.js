@@ -30,15 +30,6 @@
     });
   });
 
-  // Чипы маршрута в шеринге (VPN / Zapret)
-  demo.querySelectorAll("[data-route-group] .a-btn").forEach(function (chip) {
-    chip.addEventListener("click", function () {
-      chip.parentElement.querySelectorAll(".a-btn").forEach(function (other) {
-        other.classList.toggle("on", other === chip);
-      });
-    });
-  });
-
   // Переключатели-свитчи
   demo.querySelectorAll(".a-toggle").forEach(function (toggle) {
     toggle.addEventListener("click", function () { toggle.classList.toggle("on"); });

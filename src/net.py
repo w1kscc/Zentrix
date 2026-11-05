@@ -210,30 +210,3 @@ def external_ip_info(proxy_url: str | None = None, timeout: float = 8.0) -> dict
         "country_name": str(payload.get("country_name", "") or "").strip(),
         "country_code": str(payload.get("country_code", "") or "").strip(),
     }
-
-
-def lan_ipv4_addresses() -> list[str]:
-    """List private IPv4 addresses on active non-tunnel adapters."""
-    try:
-        import psutil
-    except ImportError:
-        return []
-    addresses: list[str] = []
-    for name, stats in psutil.net_if_stats().items():
-        lowered = name.casefold()
-        if not stats.isup or any(token in lowered for token in
-                                 ("vpn", "tap", "tun", "wintun", "wireguard", "loopback",
-                                  "virtual", "vethernet")):
-            continue
-        for address in psutil.net_if_addrs().get(name, []):
-            if address.family != socket.AF_INET:
-                continue
-            try:
-                ip = ipaddress.ip_address(address.address)
-            except ValueError:
-                continue
-            if ip.is_private and not ip.is_loopback and not ip.is_link_local:
-                value = str(ip)
-                if value not in addresses:
-                    addresses.append(value)
-    return addresses

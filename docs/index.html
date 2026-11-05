@@ -56,7 +56,7 @@
       </div>
 
 <div class="mock app-demo" id="appDemo">
-        <div class="win"><i></i><i></i><i></i><span>ZENTRIX · v1.0.5 Beta</span>
+        <div class="win"><i></i><i></i><i></i><span>ZENTRIX · v1.1.5</span>
           <span class="pill"><i class="dot"></i>Обход выключен</span>
         </div>
         <div class="app">
@@ -65,12 +65,12 @@
             <button data-page="home" class="on" data-glyph="⌂"><span>Главная</span></button>
             <button data-page="zapret" data-glyph="⚡"><span>Zapret</span></button>
             <button data-page="vpn" data-glyph="🌐"><span>VPN</span></button>
-            <button data-page="share" data-glyph="📶"><span>Шеринг</span><em>BETA</em></button>
-            <button data-page="monitor" data-glyph="↯"><span>Мониторинг</span></button>
             <button data-page="check" data-glyph="◎"><span>Проверки</span></button>
+            <button data-page="tools" data-glyph="🔧"><span>Инструменты</span></button>
+            <button data-page="monitor" data-glyph="↯"><span>Мониторинг</span></button>
             <button data-page="updates" data-glyph="↓"><span>Обновления</span></button>
             <button data-page="settings" data-glyph="◐"><span>Настройки</span></button>
-            <div class="app-foot"><b>АДМИНИСТРАТОР</b><small>1.0.5 Beta · MIT</small></div>
+            <div class="app-foot"><b>АДМИНИСТРАТОР</b><small>1.1.5 · MIT</small></div>
           </aside>
 
           <div class="app-body">
@@ -102,7 +102,7 @@
                   <span class="a-manage">› Управление</span>
                 </div>
                 <div class="a-card">
-                  <h5>📶 Шеринг <span class="chip">ВЫКЛЮЧЕНО</span></h5>
+                  <h5>📶 Проверки <span class="chip">ВЫКЛЮЧЕНО</span></h5>
                   <p class="a-sub">Подключение устройств в LAN · BETA</p>
                   <span class="a-manage">› Управление</span>
                 </div>
@@ -207,30 +207,18 @@
               </div>
             </section>
 
-            <!-- Шеринг -->
-            <section class="page" data-page="share">
-              <div class="pg-head"><h4>Прокси-шеринг</h4><p>Подключите устройства домашней сети к интернету через этот ПК</p></div>
-              <div class="a-card">
-                <h5>Локальный шеринг <span class="chip ok">РАБОТАЕТ</span></h5>
-                <div class="a-row" style="align-items:center;margin-bottom:8px">
-                  <span class="a-toggle on"><i></i></span>
-                  <span style="font-size:12.5px">Раздача включена — устройства могут подключаться</span>
-                </div>
-                <p style="margin-bottom:8px">Через что идёт трафик устройств:</p>
-                <div class="a-row" data-route-group>
-                  <span class="a-btn">VPN</span>
-                  <span class="a-btn on">Zapret</span>
-                </div>
-              </div>
-              <div class="a-cards two" style="margin-top:10px">
-                <div class="a-card" style="text-align:center">
-                  <h5 style="justify-content:center">QR-код подключения</h5>
-                  <div class="qr"></div>
-                  <p>socks5://<span class="mask">ххх.ххх.ххх.ххх</span>:10808</p>
-                </div>
-                <div class="a-card"><h5>Как подключить</h5>
-                  <p>Wi-Fi устройства → прокси вручную →<br>IP компьютера: <span class="mask">ххх.ххх.ххх.ххх</span><br>Порт: <b style="color:var(--text)">10808</b></p></div>
-              </div>
+
+            <!-- Инструменты -->
+            <section class="page" data-page="tools">
+              <div class="pg-head"><h4>Инструменты</h4><p>Починка сети, DNS, hosts и диагностика — в один клик</p></div>
+              <div class="a-card"><h5>🔧 Починить сеть <span class="chip ok">ГОТОВО</span></h5>
+                <p class="a-sub">flushdns → Winsock → сброс IP-стека → кэш Zentrix</p></div>
+              <div class="a-card"><h5>🌐 Смена DNS</h5>
+                <p class="a-sub">Cloudflare · Google · AdGuard · Family · DHCP</p></div>
+              <div class="a-card"><h5>📋 hosts-редактор</h5>
+                <p class="a-sub">Анти-рекламный пресет, групповое вкл/выкл записей</p></div>
+              <div class="a-card"><h5>🎮 Игровой режим</h5>
+                <p class="a-sub">Высокий приоритет игр + «Максимальная производительность», автовосстановление</p></div>
             </section>
 
             <!-- Мониторинг -->
@@ -277,7 +265,7 @@
               <div class="a-card">
                 <h5>Компоненты</h5>
                 <div class="a-list">
-                  <div class="a-item"><b>Zentrix</b> · v1.0.5<span class="tag" style="color:var(--green)">Актуальная</span></div>
+                  <div class="a-item"><b>Zentrix</b> · v1.1.5<span class="tag" style="color:var(--green)">Актуальная</span></div>
                   <div class="a-item"><b>Zapret</b> · 1.10.4<span class="tag" style="color:var(--green)">Актуальная</span></div>
                   <div class="a-item"><b>Xray-core</b> · v25.*<span class="tag" style="color:#f0c876">Доступно обновление</span></div>
                   <div class="a-item"><b>sing-box</b> · v1.*<span class="tag" style="color:var(--green)">Актуальная</span></div>
@@ -371,7 +359,7 @@
         </div>
 
         <div class="card">
-          <h3><span class="ico">⇄</span> Мульти-прокси и шеринг · BETA</h3>
+          <h3><span class="ico">⇄</span> Мульти-прокси · BETA</h3>
           <p>
             sing-box распределяет новые TCP-подключения между максимум пятью серверами.
             Активный VPN можно раздать устройствам той же локальной сети по HTTP или SOCKS5.
@@ -420,7 +408,14 @@
         </div>
       </div>
     </div>
-  </section>
+  
+          <div class="feature-note" style="margin-top:18px;padding:14px 18px;border:1px solid rgba(255,196,107,.4);border-radius:14px">
+            <h3 style="margin:0 0 6px"><span class="ico">🔑</span> Поиск бесплатных ключей · BETA</h3>
+            <p class="a-sub">Только известные публичные репозитории-подписки, проверка доступности и
+            добавление строго вручную. <b>НА СВОЙ СТРАХ И РИСК:</b> бесплатные узлы не гарантируют
+            безопасность — возможен сбор данных и MITM. Функция по умолчанию выключена.</p>
+          </div>
+</section>
 
   <!-- ============================================================ screens -->
   <section id="screens">
