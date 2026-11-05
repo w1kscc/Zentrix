@@ -17,8 +17,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from . import net
-import urllib.error
-import urllib.request
 from .logger import get_logger
 
 log = get_logger("free-keys")
@@ -138,37 +136,31 @@ def parse_node(link: str, index: int, source: str) -> FreeNode:
 
 
 def fetch_source_links(repo: str, files: list[str] | None = None) -> list[str]:
-    """Fetch the named files straight from raw.githubusercontent.com.
-
-    The GitHub contents API is rate-limited (60/h unauthenticated) and made
-    the search silently return nothing; raw URLs have no such limit.
-    """
+    """Fetch the named raw files from one public repo (GitHub API listing)."""
     links: list[str] = []
-    failures = 0
-    for name in (files or []):
-        data = None
-        for branch in ("main", "master"):
-            url = f"https://raw.githubusercontent.com/{repo}/{branch}/{name}"
-            try:
-                request = urllib.request.Request(url, headers={"User-Agent": net.USER_AGENT})
-                with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT) as response:
-                    data = response.read()
-                break
-            except urllib.error.HTTPError as exc:
-                if exc.code == 404:
-                    continue  # wrong branch name
-                failures += 1
-                log.warning("Файл %s/%s: HTTP %s", repo, name, exc.code)
-                break
-            except Exception as exc:
-                failures += 1
-                log.warning("Файл %s/%s: %s", repo, name, exc)
-                break
-        if data:
+    try:
+        listing = net.http_json(f"https://api.github.com/repos/{repo}/contents/",
+                                timeout=FETCH_TIMEOUT)
+    except Exception as exc:
+        log.warning("Список файлов %s: %s", repo, exc)
+        return links
+    names = {item.get("name", "") for item in listing if isinstance(item, dict)}
+    targets = [name for name in (files or [])
+               if any(name.casefold() == candidate.casefold() for candidate in names)]
+    for name in targets:
+        try:
+            raw = net.http_json(
+                f"https://api.github.com/repos/{repo}/contents/{name}",
+                timeout=FETCH_TIMEOUT,
+            )
+            import base64 as b64
+            content = str(raw.get("content", "") or "")
+            if not content:
+                continue
+            data = b64.b64decode(content)
             links.extend(extract_links(decode_payload(data)))
-    if failures and not links:
-        raise RuntimeError(
-            "не удалось скачать источники (проверьте интернет или повторите позже)")
+        except Exception as exc:
+            log.debug("Файл %s/%s: %s", repo, name, exc)
     return links
 
 
@@ -205,13 +197,7 @@ def search(progress=None, cancelled=None, categories=None, schemes=None) -> list
                   if scheme_filter is None or s in scheme_filter]
         if not wanted:
             continue
-        try:
-            fetched = fetch_source_links(SOURCE_REPO, category["files"])
-        except RuntimeError:
-            if not collected:
-                raise
-            continue
-        for link in fetched:
+        for link in fetch_source_links(SOURCE_REPO, category["files"]):
             scheme = link.split("://", 1)[0].lower()
             if scheme not in wanted:
                 continue
