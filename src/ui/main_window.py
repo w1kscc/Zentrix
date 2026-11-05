@@ -31,6 +31,7 @@ log = get_logger("window")
 NAV = (
     ("home", "Главная", "home", ""),
     ("zapret", "Zapret", "bolt", ""),
+    ("tgws", "TG WS Proxy", "link", ""),
     ("vpn", "VPN", "globe", ""),
     ("blockcheck", "Проверки", "target", ""),
     ("tools", "Инструменты", "wrench", ""),
@@ -42,6 +43,7 @@ NAV = (
 PAGE_MODULES = {
     "home": ("home", "HomePage"),
     "zapret": ("zapret", "ZapretPage"),
+    "tgws": ("tgws", "TgWsPage"),
     "vpn": ("vpn", "VpnPage"),
     "tools": ("tools", "ToolsPage"),
     "monitor": ("monitor", "MonitorPage"),
@@ -50,7 +52,7 @@ PAGE_MODULES = {
     "settings": ("settings", "SettingsPage"),
 }
 
-NAV_GROUPS = ((0, 1, 2), (3, 4, 5), (6, 7))
+NAV_GROUPS = ((0, 1, 2, 3), (4, 5, 6), (7, 8))
 
 
 class StatusDot(QWidget):
@@ -257,7 +259,7 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda _=False, k=key: self.navigate(k))
             self._nav_buttons[key] = button
             side.addWidget(button)
-            if index in (2, 5):
+            if index in (1, 6):
                 side.addSpacing(10)
         side.addStretch(1)
 

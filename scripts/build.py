@@ -36,6 +36,7 @@ ICON = ROOT / "assets" / "brand" / "zentrix.ico"
 PAGE_MODULES = (
     "src.ui.pages.home",
     "src.ui.pages.zapret",
+    "src.ui.pages.tgws",
     "src.ui.pages.happ",
     "src.ui.pages.hiddify",
     "src.ui.pages.proxy_page",
