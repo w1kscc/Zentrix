@@ -80,7 +80,7 @@ class ProxyPage(Page):
             "Направить трафик Windows через локальный порт",
             bool(self.ctx.settings.get(f"{self.engine.ns}.sysproxy", False)), p,
         )
-        self.sysproxy_row.setMinimumWidth(330)
+        self.sysproxy_row.setMinimumWidth(220)
         self.sysproxy_row.toggled.connect(self._sysproxy_changed)
         actions.addWidget(self.sysproxy_row, 1)
         column.addLayout(actions)

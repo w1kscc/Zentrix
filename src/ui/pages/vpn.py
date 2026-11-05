@@ -190,7 +190,7 @@ class VpnPage(QWidget):
         body_scroll = QScrollArea()
         body_scroll.setWidgetResizable(True)
         body_scroll.setFrameShape(QScrollArea.NoFrame)
-        body_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         body_scroll.setWidget(self.sections)
         layout.addWidget(body_scroll, 1)
         self.section_buttons["connect"].setChecked(True)
