@@ -30,7 +30,6 @@
     <span class="ver-pill"><i></i><b data-version>…</b></span>
     <nav class="top">
       <a href="#features">Возможности</a>
-      <a href="#screens">Скриншоты</a>
       <a href="#download">Скачать</a>
       <a href="#thanks">Благодарности</a>
       <a href="https://github.com/w1kscc/Zentrix" rel="noopener">GitHub</a>
@@ -56,7 +55,8 @@
       </div>
 
 <div class="mock app-demo" id="appDemo">
-        <div class="win"><i></i><i></i><i></i><span>ZENTRIX · v1.1.5</span>
+        <div class="win"><i></i><i></i><i></i><span>ZENTRIX · v1.1.6</span>
+            <span class="pill"><i class="dot on"></i>TG Proxy · работает</span>
           <span class="pill"><i class="dot"></i>Обход выключен</span>
         </div>
         <div class="app">
@@ -70,7 +70,7 @@
             <button data-page="monitor" data-glyph="↯"><span>Мониторинг</span></button>
             <button data-page="updates" data-glyph="↓"><span>Обновления</span></button>
             <button data-page="settings" data-glyph="◐"><span>Настройки</span></button>
-            <div class="app-foot"><b>АДМИНИСТРАТОР</b><small>1.1.5 · MIT</small></div>
+            <div class="app-foot"><b>АДМИНИСТРАТОР</b><small>1.1.6 · MIT</small></div>
           </aside>
 
           <div class="app-body">
@@ -121,6 +121,10 @@
                   </div>
                 </div>
               </div>
+              <div class="a-card"><h5>🔗 TG WS Proxy <span class="chip ok">ВСТРОЕН</span></h5>
+                <p class="a-sub">Мост Telegram через WebSocket на ядре Flowseal/tg-ws-proxy —
+                работает внутри Zentrix, без сторонних окон. Включение, порт,
+                автозапуск, «Открыть в Telegram». Обновляется с GitHub-релизов.</p></div>
             </section>
 
             <!-- Zapret -->
@@ -265,7 +269,7 @@
               <div class="a-card">
                 <h5>Компоненты</h5>
                 <div class="a-list">
-                  <div class="a-item"><b>Zentrix</b> · v1.1.5<span class="tag" style="color:var(--green)">Актуальная</span></div>
+                  <div class="a-item"><b>Zentrix</b> · v1.1.6<span class="tag" style="color:var(--green)">Актуальная</span></div>
                   <div class="a-item"><b>Zapret</b> · 1.10.4<span class="tag" style="color:var(--green)">Актуальная</span></div>
                   <div class="a-item"><b>Xray-core</b> · v25.*<span class="tag" style="color:#f0c876">Доступно обновление</span></div>
                   <div class="a-item"><b>sing-box</b> · v1.*<span class="tag" style="color:var(--green)">Актуальная</span></div>
@@ -415,34 +419,23 @@
             добавление строго вручную. <b>НА СВОЙ СТРАХ И РИСК:</b> бесплатные узлы не гарантируют
             безопасность — возможен сбор данных и MITM. Функция по умолчанию выключена.</p>
           </div>
+
+          <div class="feature-note" style="margin-top:14px;padding:14px 18px;border:1px solid rgba(124,92,255,.4);border-radius:14px">
+            <h3 style="margin:0 0 6px"><span class="ico">🔗</span> TG WS Proxy — встроенный мост Telegram</h3>
+            <p class="a-sub">Ядро Flowseal/tg-ws-proxy работает прямо внутри Zentrix — без сторонних
+            процессов и второй иконки в трее. Управление на вкладке Zapret, статус — на Главной,
+            обновление — на вкладке Обновлений (скачивание с GitHub-релизов с валидацией и откатом).</p>
+          </div>
+
+          <div class="feature-note" style="margin-top:14px;padding:14px 18px;border:1px solid rgba(61,220,151,.4);border-radius:14px">
+            <h3 style="margin:0 0 6px"><span class="ico">🤖</span> Автоматизация и сервис</h3>
+            <p class="a-sub">Watchdog Zapret с автоперезапуском, сценарии «если → то», алерты смены IP,
+            авто-тема «Как в Windows», авто-обновление подписок, история блокчеков в SQLite за 7 дней,
+            палитра команд Ctrl+K, починка сети и смена DNS в один клик, редактор hosts, диагностика
+            ping/traceroute/whois/порт-скан, игровой режим с автовосстановлением питания.</p>
+          </div>
 </section>
 
-  <!-- ============================================================ screens -->
-  <section id="screens">
-    <div class="wrap">
-      <h2>Как это выглядит</h2>
-      <p class="sub">Нативный интерфейс Windows: без Electron, без веб-вьюх и без консолей на фоне.</p>
-
-      <div class="shots">
-        <figure class="shot">
-          <img src="screenshots/zapret.png" alt="Страница Zapret" loading="lazy">
-          <figcaption>Zapret — стратегии и запуск в одно нажатие</figcaption>
-        </figure>
-        <figure class="shot">
-          <img src="screenshots/blockcheck.png" alt="Проверка блокировок" loading="lazy">
-          <figcaption>Проверка: что работает, что заблокировано и чем</figcaption>
-        </figure>
-        <figure class="shot">
-          <img src="screenshots/monitor.png" alt="Мониторинг сети" loading="lazy">
-          <figcaption>Мониторинг скорости и соединений</figcaption>
-        </figure>
-        <figure class="shot">
-          <img src="screenshots/settings-appearance.png" alt="Настройки оформления" loading="lazy">
-          <figcaption>Настройки: темы, акценты, звуки</figcaption>
-        </figure>
-      </div>
-    </div>
-  </section>
 
   <!-- ============================================================ download -->
   <section id="download">
