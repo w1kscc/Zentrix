@@ -15,12 +15,12 @@ VSVersionInfo(
         '040904B0',
         [StringStruct('CompanyName', 'Zentrix Project'),
          StringStruct('FileDescription', 'GUI для обхода блокировок: Zapret и VPN в одном окне'),
-         StringStruct('FileVersion', '1.0.7'),
+         StringStruct('FileVersion', '1.1.5'),
          StringStruct('InternalName', 'Zentrix'),
          StringStruct('LegalCopyright', 'Copyright (c) 2026 Zentrix Project. MIT License.'),
          StringStruct('OriginalFilename', 'Zentrix.exe'),
          StringStruct('ProductName', 'Zentrix'),
-         StringStruct('ProductVersion', '1.0.7')])
+         StringStruct('ProductVersion', '1.1.5')])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
