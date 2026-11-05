@@ -200,8 +200,19 @@ class HomePage(Page):
         self.vpn_pill = StatusPill("VPN", p)
         pills.addWidget(self.zapret_pill, 1)
         pills.addWidget(self.vpn_pill, 1)
+        tgws_column = QVBoxLayout()
+        tgws_column.setSpacing(4)
         self.tgws_pill = StatusPill("TG Proxy", p)
-        pills.addWidget(self.tgws_pill, 1)
+        tgws_column.addWidget(self.tgws_pill)
+        self.tgws_home_button = QPushButton("Выключить" if self._tgws_on() else "Включить")
+        self.tgws_home_button.setProperty("variant", "chip")
+        self.tgws_home_button.setCursor(Qt.PointingHandCursor)
+        self.tgws_home_button.setFixedHeight(28)
+        self.tgws_home_button.setToolTip("TG WS Proxy — мост Telegram, настраивается на вкладке Zapret")
+        self.tgws_home_button.clicked.connect(self._toggle_tgws_home)
+        tgws_column.addWidget(self.tgws_home_button)
+        tgws_column.addStretch(1)
+        pills.addLayout(tgws_column, 1)
         status_card.add_layout(pills)
         top.addWidget(status_card, 3)
 
@@ -309,6 +320,37 @@ class HomePage(Page):
         except Exception:
             return False
 
+    def _tgws_on(self) -> bool:
+        try:
+            return self.ctx.tgws.status == "running"
+        except Exception:
+            return False
+
+    def _toggle_tgws_home(self) -> None:
+        from ..workers import run_task
+
+        engine = self.ctx.tgws
+        self.tgws_home_button.setEnabled(False)
+        if engine.status == "running":
+            run_task(self, engine.stop,
+                     on_done=lambda _r: (self.tgws_home_button.setEnabled(True),
+                                         self.ctx.notify("TG WS Proxy остановлен", "info"),
+                                         self._refresh_hero()),
+                     on_error=lambda msg: (self.tgws_home_button.setEnabled(True),
+                                           self.ctx.notify(msg, "err", "error")))
+        else:
+            if not engine.is_available():
+                self.tgws_home_button.setEnabled(True)
+                self.ctx.notify("Ядро TG WS Proxy не скачано — установите его на вкладке Zapret",
+                                "warn")
+                return
+            run_task(self, engine.start,
+                     on_done=lambda _r: (self.tgws_home_button.setEnabled(True),
+                                         self.ctx.notify("TG WS Proxy запущен", "ok"),
+                                         self._refresh_hero()),
+                     on_error=lambda msg: (self.tgws_home_button.setEnabled(True),
+                                           self.ctx.notify(f"TG WS Proxy: {msg}", "err", "error")))
+
     def _refresh_hero(self) -> None:
         zapret = self.ctx.zapret
         running = zapret.status == "running"
@@ -344,6 +386,7 @@ class HomePage(Page):
             (f"Работает · порт {self.ctx.settings.get('tgws.port', 1443)}") if tg_on
             else ("Ошибка" if tgws.status == "error" else "Выключен"),
         )
+        self.tgws_home_button.setText("Выключить" if tg_on else "Включить")
 
     # -------------------------------------------------------------- strategy
     def _load_strategies(self) -> None:
@@ -526,6 +569,7 @@ class HomePage(Page):
     def on_theme(self) -> None:
         p = self.ctx.palette
         self.orb.set_palette(p)
+        self.tgws_home_button.setText("Выключить" if self._tgws_on() else "Включить")
         for pill in (self.zapret_pill, self.vpn_pill, self.tgws_pill):
             pill.set_palette(p)
         self._refresh_hero()

@@ -22,6 +22,7 @@ META = {
     "zapret": ("Zapret", "bolt", "zapret-discord-youtube-1.10.4", "Flowseal/zapret-discord-youtube", "MIT"),
     "happ": ("Happ", "globe", "happ-desktop-4.6.1", "Happ-proxy/happ-desktop", "Proprietary"),
     "hiddify": ("Hiddify", "shield", "hiddify-app-4.1.1", "hiddify/hiddify-app", "CC BY-NC-SA 4.0"),
+    "tgwsproxy": ("TG WS Proxy", "link", "встроенное ядро", "Flowseal/tg-ws-proxy", "MIT"),
     "zentrix": ("Zentrix", "download", "Самообновление приложения", "", "MIT"),
 }
 
@@ -127,7 +128,7 @@ class UpdatesPage(Page):
 
         grid = QGridLayout()
         grid.setSpacing(14)
-        for index, key in enumerate(("zapret", "happ", "hiddify", "zentrix")):
+        for index, key in enumerate(("zapret", "happ", "hiddify", "tgwsproxy", "zentrix")):
             card = ComponentCard(key, p)
             card.check_button.clicked.connect(lambda _=False, k=key: self.check(k))
             card.download_button.clicked.connect(lambda _=False, k=key: self._install(k))
@@ -142,6 +143,8 @@ class UpdatesPage(Page):
             "(MIT), стратегии 1.10.4.<br>"
             "• <b>Happ</b> — <a href='https://github.com/Happ-proxy/happ-desktop'>Happ-proxy/happ-desktop</a> "
             "(4.6.1, проприетарная лицензия Happ); Zentrix использует собственное ядро Xray.<br>"
+            "• <b>TG WS Proxy</b> — <a href='https://github.com/Flowseal/tg-ws-proxy'>Flowseal/tg-ws-proxy</a> "
+            "(MIT), встроенное ядро-мост для Telegram; обновляется как исходники релиза.<br>"
             "• <b>Hiddify</b> — <a href='https://github.com/hiddify/hiddify-app'>hiddify/hiddify-app</a> "
             "(4.1.1, CC BY-NC-SA 4.0); Zentrix использует ядро sing-box.<br>"
             "• Обновления движков скачиваются с GitHub и распаковываются в <code>engines/</code>. "
