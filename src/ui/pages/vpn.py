@@ -168,8 +168,10 @@ class VpnPage(QWidget):
         self.stack = QStackedWidget()
         for page_object in (self.xray_page, self.singbox_page):
             page_object.column.setContentsMargins(0, 0, 0, 0)
-            content = page_object.widget()
-            content.setParent(None)
+            # takeWidget() fully detaches the container from the old
+            # scrollarea: with a plain widget() the orphaned QScrollArea kept
+            # re-squeezing the content back to its own viewport width.
+            content = page_object.takeWidget()
             self.stack.addWidget(content)
         connect_layout.addWidget(self.stack, 1)
         self.sections.addWidget(connect_view)
