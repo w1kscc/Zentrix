@@ -47,7 +47,11 @@ PAGE_MODULES = (
     "src.ui.pages.updates",
     "src.ui.pages.settings",
 )
-HIDDEN_IMPORTS = (*PAGE_MODULES, "PySide6.QtMultimedia",
+# TG WS Proxy core is imported at runtime from engines/tgwsproxy, so its
+# third-party dependencies must be bundled explicitly.
+TGWS_DEPS = ("httpx", "httpcore", "h11", "h2", "certifi", "cryptography",
+             "anyio", "sniffio")
+HIDDEN_IMPORTS = (*PAGE_MODULES, *TGWS_DEPS, "PySide6.QtMultimedia",
                   "PySide6.QtNetwork")
 
 
