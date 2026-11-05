@@ -17,6 +17,7 @@ from .. import constants, paths, winapi
 from ..logger import get_logger
 from . import overlays, theme
 from .context import AppContext
+from .palette import CommandPalette
 from .tray import TrayController
 from .widgets import (
     BackgroundWidget, Badge, NavButton, Overlay, Toast, brand_pixmap, icon, repolish,
@@ -25,12 +26,15 @@ from .workers import run_task
 
 log = get_logger("window")
 
+# Level 2 (top): Zapret, VPN, Проверки, Инструменты, Мониторинг.
+# Level 3 (bottom): Обновления, Настройки — служебное, не на главной.
 NAV = (
     ("home", "Главная", "home", ""),
     ("zapret", "Zapret", "bolt", ""),
     ("vpn", "VPN", "globe", ""),
-    ("monitor", "Мониторинг", "activity", ""),
     ("blockcheck", "Проверки", "target", ""),
+    ("tools", "Инструменты", "wrench", ""),
+    ("monitor", "Мониторинг", "activity", ""),
     ("updates", "Обновления", "download", ""),
     ("settings", "Настройки", "settings", ""),
 )
@@ -39,13 +43,14 @@ PAGE_MODULES = {
     "home": ("home", "HomePage"),
     "zapret": ("zapret", "ZapretPage"),
     "vpn": ("vpn", "VpnPage"),
+    "tools": ("tools", "ToolsPage"),
     "monitor": ("monitor", "MonitorPage"),
     "blockcheck": ("blockcheck", "BlockCheckPage"),
     "updates": ("updates", "UpdatesPage"),
     "settings": ("settings", "SettingsPage"),
 }
 
-NAV_GROUPS = ((0, 1, 2, 3), (4, 5), (6, 7))
+NAV_GROUPS = ((0, 1, 2), (3, 4, 5), (6, 7))
 
 
 class StatusDot(QWidget):
@@ -252,7 +257,7 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda _=False, k=key: self.navigate(k))
             self._nav_buttons[key] = button
             side.addWidget(button)
-            if index in (3, 5):
+            if index in (2, 5):
                 side.addSpacing(10)
         side.addStretch(1)
 
@@ -284,6 +289,9 @@ class MainWindow(QMainWindow):
         self.ctx.overlay = self.overlay
         self.toast = Toast(central)
         self.ctx.toast = self.toast
+
+        self.palette = CommandPalette(p, self, central)
+        self.palette.command_chosen.connect(self.execute_command)
 
         self.tray = TrayController(self, self.ctx)
         self.ctx.tray = self.tray
@@ -444,6 +452,7 @@ class MainWindow(QMainWindow):
         self.background.set_palette(p)
         self.titlebar.set_palette(p)
         self.toast.set_palette(p)
+        self.palette.set_palette(p)
         for button in self._nav_buttons.values():
             button.set_palette(p)
         repolish(self.sidebar)
@@ -589,6 +598,73 @@ class MainWindow(QMainWindow):
             self.ctx.notify("Zapret запущен", "ok", "enable")
         elif not started:
             self.ctx.notify("Zapret остановлен", "warn", "disable")
+
+    # ---------------------------------------------------------- command palette
+    def execute_command(self, command) -> None:
+        """Dispatch a command chosen in the Ctrl+K palette."""
+        from .workers import run_task
+
+        if command.page:
+            self.navigate(command.page)
+        action = command.action
+        if not action:
+            return
+        if action == "toggle_zapret":
+            self.toggle_zapret()
+        elif action == "best_strategy":
+            self.navigate("zapret")
+            page = self._pages.get("zapret")
+            if page is not None and hasattr(page, "_search_best"):
+                page._search_best()
+        elif action == "check_blocks":
+            self.navigate("blockcheck")
+            page = self._pages.get("blockcheck")
+            if page is not None and hasattr(page, "_toggle_run"):
+                page._toggle_run()
+        elif action == "repair_network":
+            if not self.ctx.admin():
+                self._admin_help()
+                return
+            self.ctx.notify("Чиню сеть: flushdns → Winsock → сброс IP-стека…", "info")
+
+            def _repair():
+                from .. import nettools
+                return nettools.repair_network()
+
+            run_task(self, _repair,
+                     on_done=lambda rows: self.ctx.notify(
+                         "Сеть починена: " + ", ".join(
+                             title for _key, title, ok in rows if ok) or "готово", "ok"),
+                     on_error=lambda message: self.ctx.notify(f"Не удалось починить сеть: {message}",
+                                                              "err", "error"))
+        elif action == "toggle_game_mode":
+            from .. import game_mode
+
+            mode = game_mode.instance()
+            if mode.active:
+                self.ctx.notify(mode.disable(), "info")
+            else:
+                games = list(self.ctx.settings.section("gamemode").get("games", [])
+                             or ["csgo", "cs2", "valorant", "dota2", "fortnite"])
+                run_task(self, lambda: mode.enable(games),
+                         on_done=lambda message: self.ctx.notify(message, "ok"),
+                         on_error=lambda message: self.ctx.notify(message, "err", "error"))
+        elif action == "check_updates":
+            self.navigate("updates")
+            page = self._pages.get("updates")
+            if page is not None and hasattr(page, "check_all"):
+                page.check_all()
+        elif action == "cleaner":
+            self.navigate("settings")
+        elif action == "ip_now":
+            def _probe():
+                from .. import ipwatch as module
+                return module.describe(module.probe())
+
+            run_task(self, _probe,
+                     on_done=lambda text: self.ctx.notify(f"Внешний IP: {text}", "info"),
+                     on_error=lambda message: self.ctx.notify(f"IP не определён: {message}",
+                                                              "err", "error"))
 
     def _admin_help(self) -> None:
         overlays.confirm(

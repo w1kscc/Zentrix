@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QListWidget, QListWidgetItem as QtListWidgetItem
 from PySide6.QtWidgets import (
     QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
     QVBoxLayout, QWidget,
 )
 
-from ... import net
+from ... import net, free_keys, nettools
 from .. import flags
 from ..widgets import Badge, GlassCard
 from ..workers import run_task
@@ -130,6 +131,9 @@ class VpnPage(QWidget):
         engine_card.add(self.multi_hint)
         layout.addWidget(engine_card)
 
+        self._build_servers_card(layout, context)
+        self._build_beta_card(layout, context)
+
         self.stack = QStackedWidget()
         self.xray_page = HappPage(context)
         self.singbox_page = HiddifyPage(context)
@@ -222,6 +226,221 @@ class VpnPage(QWidget):
             return
         panel = self.direct_panel if kind == "direct" else self.vpn_panel
         panel.show_error()
+
+    # ---------------------------------------------------------------- servers
+    def _build_servers_card(self, layout, context) -> None:
+        """Ping / pick-best, subscription auto-update."""
+        p = context.palette
+        card = GlassCard("Серверы и подписки", "Замер задержки и авто-обновление подписок",
+                         "activity", p)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.ping_button = QPushButton("Ping серверов")
+        self.ping_button.setToolTip("TCP-замер задержки каждого сервера списка")
+        self.ping_button.clicked.connect(self._ping_servers)
+        row.addWidget(self.ping_button)
+        self.best_server_button = QPushButton("Выбрать лучший")
+        self.best_server_button.setToolTip("Переключиться на сервер с минимальной задержкой")
+        self.best_server_button.clicked.connect(self._pick_best_server)
+        row.addWidget(self.best_server_button)
+        self.ping_hint = QLabel("Замер по TCP-подключению к каждому серверу")
+        self.ping_hint.setObjectName("tiny")
+        self.ping_hint.setWordWrap(True)
+        row.addWidget(self.ping_hint, 1)
+        card.add_layout(row)
+
+        subs_row = QHBoxLayout()
+        subs_row.setSpacing(8)
+        self.subs_auto = QPushButton("Авто-обновление подписок")
+        self.subs_auto.setProperty("variant", "chip")
+        self.subs_auto.setCheckable(True)
+        self.subs_auto.setChecked(bool(context.settings.get("subscriptions.auto_update", False)))
+        self.subs_auto.clicked.connect(self._toggle_subs_auto)
+        subs_row.addWidget(self.subs_auto)
+        self.subs_now = QPushButton("Обновить сейчас")
+        self.subs_now.clicked.connect(self._update_subscriptions)
+        subs_row.addWidget(self.subs_now)
+        self.subs_hint = QLabel("URL подписок задаются в списках серверов ниже")
+        self.subs_hint.setObjectName("tiny")
+        self.subs_hint.setWordWrap(True)
+        subs_row.addWidget(self.subs_hint, 1)
+        card.add_layout(subs_row)
+        layout.addWidget(card)
+
+    # ------------------------------------------------------------------- BETA
+    def _build_beta_card(self, layout, context) -> None:
+        """BETA: free public keys. Off by default, manual add only."""
+        p = context.palette
+        card = GlassCard("Поиск бесплатных ключей", "Публичные репозитории · BETA — на свой страх и риск",
+                         "link", p)
+        self.beta_badge = Badge("BETA", "warn")
+        card.add_header_widget(self.beta_badge)
+        self.beta_enabled = QPushButton("Включить поиск ключей")
+        self.beta_enabled.setCheckable(True)
+        self.beta_enabled.setChecked(bool(context.settings.get("freekeys.enabled", False)))
+        self.beta_enabled.clicked.connect(self._toggle_beta)
+        card.add(self.beta_enabled)
+        self.beta_label = QLabel(
+            "BETA — НА СВОЙ СТРАХ И РИСК. Бесплатные узлы не гарантируют безопасность: "
+            "возможен сбор данных и MITM. Ничего не применяется автоматически — "
+            "добавляйте узлы вручную кнопкой ниже.")
+        self.beta_label.setObjectName("tiny")
+        self.beta_label.setWordWrap(True)
+        card.add(self.beta_label)
+        beta_row = QHBoxLayout()
+        self.beta_search = QPushButton("Найти ключи")
+        self.beta_search.clicked.connect(self._search_keys)
+        beta_row.addWidget(self.beta_search)
+        self.beta_add = QPushButton("Добавить выбранный в мой список")
+        self.beta_add.setEnabled(False)
+        self.beta_add.clicked.connect(self._add_key)
+        beta_row.addWidget(self.beta_add)
+        beta_row.addStretch(1)
+        card.add_layout(beta_row)
+        self.beta_results = QListWidget()
+        self.beta_results.setMaximumHeight(150)
+        self.beta_results.setVisible(bool(context.settings.get("freekeys.enabled", False)))
+        card.add(self.beta_results, 1)
+        layout.addWidget(card)
+
+    def _toggle_beta(self, checked: bool) -> None:
+        self.ctx.settings.set("freekeys.enabled", bool(checked))
+        self.beta_results.setVisible(bool(checked))
+        if checked:
+            self.ctx.notify("Поиск ключей включён. Помните: это BETA и на ваш риск.", "warn")
+        else:
+            self.beta_results.clear()
+
+    def _search_keys(self) -> None:
+        if not bool(self.ctx.settings.get("freekeys.enabled", False)):
+            self.ctx.notify("Сначала включите поиск ключей (BETA)", "warn")
+            return
+        self.beta_search.setEnabled(False)
+        self.beta_label.setText("Ищу в известных публичных источниках…")
+
+        def _progress(index, total, name):
+            self.beta_label.setText(f"Источник {index}/{total}: {name}")
+
+        def _search():
+            nodes = free_keys.search(progress=_progress)
+            free_keys.probe_nodes(nodes)
+            return nodes
+
+        run_task(self, _search, on_done=self._keys_found,
+                 on_error=self._keys_failed)
+
+    def _keys_found(self, nodes) -> None:
+        import time
+
+        self.beta_search.setEnabled(True)
+        self._free_nodes = nodes
+        self.beta_results.clear()
+        for node in nodes:
+            ping = f" · {node.ping_ms:.0f} мс" if node.ping_ms is not None else ""
+            alive = "" if node.usable is None else (" · доступен" if node.usable else " · недоступен")
+            item = QtListWidgetItem(f"{node.name} [{node.scheme}]{ping}{alive}")
+            item.setData(Qt.UserRole, node)
+            self.beta_results.addItem(item)
+        self.beta_add.setEnabled(bool(nodes))
+        self.beta_label.setText(free_keys.summarize(nodes))
+        self.ctx.settings.set("freekeys.last_search", time.time())
+
+    def _keys_failed(self, message: str) -> None:
+        self.beta_search.setEnabled(True)
+        self.beta_label.setText(f"Поиск не удался: {message}")
+
+    def _add_key(self) -> None:
+        item = self.beta_results.currentItem()
+        if item is None:
+            self.ctx.notify("Выберите узел в списке", "warn")
+            return
+        node = item.data(Qt.UserRole)
+        engine = self.active_engine
+        existing = "\n".join(n.raw_link for n in engine.nodes() if n.raw_link)
+        engine.set_profile_text("\n".join(filter(None, [existing, node.raw_link])))
+        self.ctx.notify(f"Узел «{node.name}» добавлен с пометкой BETA/не проверено", "ok")
+        self.active_page._reload_nodes()
+
+    def _ping_servers(self) -> None:
+        engine = self.active_engine
+        nodes = engine.nodes()
+        if not nodes:
+            self.ping_hint.setText("Список серверов пуст — добавьте серверы или подписку")
+            return
+        self.ping_button.setEnabled(False)
+        self.ping_hint.setText(f"Проверяю {len(nodes)} серверов…")
+
+        def _probe():
+            rows = []
+            for node in nodes:
+                latency = (nettools.tcp_ping(node.host, node.port, timeout=3.0)
+                           if node.host and node.port else None)
+                rows.append((node, latency))
+            return rows
+
+        run_task(self, _probe, on_done=self._ping_done,
+                 on_error=lambda _message: self._ping_done([]))
+
+    def _ping_done(self, rows) -> None:
+        self.ping_button.setEnabled(True)
+        self._latencies = rows
+        good = [(node, ms) for node, ms in rows if ms is not None]
+        if good:
+            best = min(good, key=lambda item: item[1])
+            self.ping_hint.setText(
+                " · ".join(f"{node.name[:24]}: {ms} мс" for node, ms in good[:5])
+                + f"   →  лучший: {best[0].name} ({best[1]} мс)")
+        else:
+            self.ping_hint.setText("Ни один сервер не ответил (TCP)")
+
+    def _pick_best_server(self) -> None:
+        rows = getattr(self, "_latencies", [])
+        if not rows:
+            self._ping_servers()
+            return
+        good = [(node, ms) for node, ms in rows if ms is not None]
+        if not good:
+            self.ctx.notify("Нет ответивших серверов — выбрать лучший нельзя", "warn")
+            return
+        best = min(good, key=lambda item: item[1])
+        nodes = self.active_engine.nodes()
+        index = next((i for i, n in enumerate(nodes) if n.raw_link == best[0].raw_link), None)
+        if index is None:
+            self.ctx.notify("Не удалось сопоставить сервер со списком", "err", "error")
+            return
+        self.active_engine.select_node(index)
+        self.active_page._reload_nodes(index)
+        self.ctx.notify(f"Выбран лучший сервер: {best[0].name} ({best[1]} мс)", "ok")
+
+    def _toggle_subs_auto(self, checked: bool) -> None:
+        self.ctx.settings.set("subscriptions.auto_update", bool(checked))
+        self.ctx.notify("Авто-обновление подписок " + ("включено" if checked else "выключено"),
+                        "info")
+        self.ctx.reschedule_subscriptions()
+
+    def _update_subscriptions(self) -> None:
+        urls = []
+        for engine in (self.ctx.happ, self.ctx.hiddify):
+            url = str(self.ctx.settings.get(f"{engine.ns}.subscription", "") or "").strip()
+            if url:
+                urls.append((engine, url))
+        if not urls:
+            self.subs_hint.setText("URL подписки не задан — вставьте его в строке «подписка» ниже")
+            return
+        self.subs_now.setEnabled(False)
+
+        def _refresh():
+            counts = []
+            for engine, url in urls:
+                counts.append(f"{engine.title}: +{engine.fetch_subscription(url)}")
+            return ", ".join(counts)
+
+        run_task(self, _refresh,
+                 on_done=lambda message: (self.subs_now.setEnabled(True),
+                                          self.subs_hint.setText(message),
+                                          self.ctx.notify("Подписки обновлены: " + message, "ok")),
+                 on_error=lambda message: (self.subs_now.setEnabled(True),
+                                           self.ctx.notify(f"Подписки: {message}", "err", "error")))
 
     def on_show(self) -> None:
         self.active_page.on_show()

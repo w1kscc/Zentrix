@@ -124,6 +124,15 @@ class BlockCheckPage(Page):
         self.summary.setObjectName("tiny")
         self.add(self.summary)
 
+        self.history_card = GlassCard("История доступности · 7 дней",
+                                      "Процент успешных проверок в день (SQLite, cache.db)",
+                                      "clock", p)
+        self.history_area = QLabel("История появится после первой проверки")
+        self.history_area.setObjectName("tiny")
+        self.history_area.setWordWrap(True)
+        self.history_card.add(self.history_area)
+        self.add(self.history_card)
+
         self.progress_card = GlassCard("Ход проверки", "", "activity", p)
         self.progress = QProgressBar()
         self.progress.setRange(0, len(constants.SERVICES))
@@ -204,6 +213,7 @@ class BlockCheckPage(Page):
 
     # ------------------------------------------------------------------- show
     def on_show(self) -> None:
+        self._render_history()
         if self._results:
             self._update_summary()
 
@@ -268,6 +278,7 @@ class BlockCheckPage(Page):
         self._runner = None
         ordered = [result for result in results if isinstance(result, ServiceResult)]
         self.ctx.block_results = ordered
+        self._store_history(ordered)
         if not ordered:
             ordered = list(self._results.values())
         for result in ordered:
@@ -285,12 +296,41 @@ class BlockCheckPage(Page):
         self._update_summary()
         self._update_recommendation()
         self.ctx.sound.play("notify")
-        home = self.ctx.pages.get("home")
-        if home is not None:
-            try:
-                home._refresh_services()  # noqa: SLF001 - dashboard mirror
-            except Exception:
-                pass
+
+    # ----------------------------------------------------------------- history
+    def _store_history(self, ordered: list) -> None:
+        """Persist results to SQLite and refresh the 7-day chart."""
+        try:
+            from ... import history
+
+            history.record_results(ordered)
+            history.prune()
+            self._render_history()
+        except Exception:
+            log.exception("Не удалось сохранить историю проверок")
+
+    def _render_history(self) -> None:
+        try:
+            from ... import history
+
+            data = history.day_availability(days=7)
+        except Exception:
+            return
+        if not data:
+            self.history_area.setText("История появится после первой проверки")
+            return
+        days = sorted({day for per_day in data.values() for day in per_day})[-7:]
+        lines = []
+        for service_id in sorted(data):
+            label = next((s["name"] for s in constants.SERVICES if s["id"] == service_id),
+                         service_id)
+            bars = " ".join(
+                f"{per_day.get(day, 0):3.0f}%" for day in days
+            )
+            lines.append(f"{label:<14} {bars}")
+        header = f"{'сервис':<14} " + " ".join(day[5:] for day in days)
+        self.history_area.setText(
+            "<code>" + chr(10).join([header, *lines]).replace(" ", "&nbsp;") + "</code>")
 
     def _on_failed(self, message: str) -> None:
         self._runner = None

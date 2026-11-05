@@ -99,6 +99,7 @@ def _post_start(window, sound: SoundManager, context: AppContext, minimized: boo
         threading.Thread(target=_auto_clean, daemon=True, name="auto-clean").start()
 
     QTimer.singleShot(900, context.autostart_engines)
+    QTimer.singleShot(1100, context.start_services)
 
 
 def main() -> int:

@@ -400,6 +400,22 @@ def qss(palette: Palette) -> str:
         border: 1px solid {line}; border-radius: 12px; min-height: 24px; max-height: 24px;
     }}
     #pageStack {{ background: transparent; }}
+    #commandPalette {{
+        background: {mix(palette.bg, palette.bg2, 0.72)};
+        border: 1px solid {rgba(accent, 0.4)};
+        border-radius: {radius}px;
+    }}
+    #commandPalette QLineEdit {{
+        background: {rgba("#000000" if dark else "#FFFFFF", 0.3 if dark else 0.6)};
+        border: 1px solid {line};
+        border-radius: {max(8, radius - 8)}px;
+        color: {text}; padding: 8px 12px; font-size: {palette.font_size + 1}pt;
+    }}
+    #commandPalette QListWidget {{
+        background: transparent; border: none; color: {text};
+    }}
+    #commandPalette QListWidget::item {{ border-radius: 6px; padding: 2px; }}
+    #commandPalette QListWidget::item:selected {{ background: {rgba(accent, 0.22)}; }}
     #sidebarFooter {{ border-top: 1px solid {line}; }}
     #logView {{
         background: {rgba("#000000" if dark else "#FFFFFF", 0.28 if dark else 0.55)};

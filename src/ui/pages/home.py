@@ -1,30 +1,21 @@
-"""Dashboard: live status, quick controls and service snapshot."""
+"""Level-1 dashboard: status, one-click fixes and the actions that matter.
+
+Everything here is visible right after launch. Level-3 items (updates,
+cleaning, appearance) are small links only — no large blocks.
+"""
 
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QRectF, Qt, QVariantAnimation
 from PySide6.QtGui import QPainter, QPen, QRadialGradient
 from PySide6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget,
+    QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
 )
 
-from ... import constants
-from ...blocking_check import STATUS_LABELS
-from .. import overlays, theme
-from ..widgets import (
-    Badge, GlassCard, IconOrb, PrimaryButton,
-    make_heading, svg_pixmap,
-)
+from .. import theme
+from ..workers import run_task
+from ..widgets import Badge, GlassCard, PrimaryButton, make_heading, svg_pixmap
 from .base_page import Page, page_heading
-
-STATUS_TEXT = {
-    "running": "Работает",
-    "starting": "Запуск…",
-    "stopping": "Остановка…",
-    "stopped": "Выключен",
-    "error": "Ошибка",
-    "missing": "Не настроен",
-}
 
 
 class StatusOrb(QWidget):
@@ -88,12 +79,67 @@ class StatusOrb(QWidget):
         painter.end()
 
 
+class StatusDot(QWidget):
+    def __init__(self, colour: str, parent=None) -> None:
+        super().__init__(parent)
+        self._colour = colour
+        self.setFixedSize(10, 10)
+
+    def set_colour(self, colour: str) -> None:
+        self._colour = colour
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(self._colour)
+        painter.drawEllipse(self.rect())
+        painter.end()
+
+
+class StatusPill(QFrame):
+    """Large on/off indicator for Zapret / VPN."""
+
+    def __init__(self, title: str, palette_obj: theme.Palette, parent=None) -> None:
+        super().__init__(parent)
+        self.setObjectName("homeStatusPill")
+        self._palette = palette_obj
+        self._on = False
+        row = QHBoxLayout(self)
+        row.setContentsMargins(14, 10, 14, 10)
+        row.setSpacing(10)
+        self.dot = StatusDot(palette_obj.muted, self)
+        self.dot.setFixedSize(12, 12)
+        row.addWidget(self.dot, 0, Qt.AlignVCenter)
+        column = QVBoxLayout()
+        column.setSpacing(1)
+        self.title = QLabel(title)
+        self.title.setStyleSheet("font-weight: 700;")
+        column.addWidget(self.title)
+        self.state = QLabel("Выключен")
+        self.state.setObjectName("tiny")
+        column.addWidget(self.state)
+        row.addLayout(column, 1)
+
+    def set_palette(self, palette_obj: theme.Palette) -> None:
+        self._palette = palette_obj
+        self.set_state(self._on, self.state.text())
+
+    def set_state(self, on: bool, text: str) -> None:
+        self._on = on
+        self.dot.set_colour(self._palette.success if on else self._palette.muted)
+        self.state.setText(text)
+        self.state.setStyleSheet(
+            f"color: {self._palette.success if on else self._palette.muted};")
+        self.title.setStyleSheet(f"color: {self._palette.text}; font-weight: 700;")
+
+
 class HomePage(Page):
     key = "home"
 
     def __init__(self, context, parent=None) -> None:
         super().__init__(context, parent)
-        self._engine_cards: dict[str, tuple[QLabel, Badge, QPushButton]] = {}
         self._build()
         self._connect()
         self.on_theme()
@@ -101,7 +147,7 @@ class HomePage(Page):
     # ------------------------------------------------------------------ build
     def _build(self) -> None:
         p = self.ctx.palette
-        self.add(page_heading("Главная", "Zapret и VPN‑подключения — под одним стеклом"))
+        self.add(page_heading("Главная", "Всё главное — сразу после запуска"))
 
         hero = QFrame()
         hero.setObjectName("hero")
@@ -128,7 +174,7 @@ class HomePage(Page):
         check_button.setIcon(self._icon("target"))
         check_button.setFixedHeight(38)
         check_button.setCursor(Qt.PointingHandCursor)
-        check_button.clicked.connect(lambda: self.ctx.navigate("blockcheck"))
+        check_button.clicked.connect(self._quick_check)
         buttons.addWidget(check_button, 0)
         buttons.addStretch(1)
         left.addLayout(buttons)
@@ -144,72 +190,95 @@ class HomePage(Page):
         hero_layout.addWidget(self.orb, 0, Qt.AlignRight | Qt.AlignVCenter)
         self.add(hero)
 
-        engines_row = QHBoxLayout()
-        engines_row.setSpacing(14)
-        for key, title, icon_name, description in (
-            ("zapret", "Zapret", "bolt", "DPI-обход через winws"),
-            ("vpn", "VPN", "globe", "Общие профили · Xray / sing-box"),
-            ("monitor", "Мониторинг", "activity", "Скорость и соединения · по запросу"),
-        ):
-            card = GlassCard(title, description, icon_name, p)
-            card.setMinimumHeight(150)
-            badge = Badge("Проверка…", "muted")
-            card.add_header_widget(badge)
-            detail = QLabel("—")
-            detail.setObjectName("tiny")
-            detail.setWordWrap(True)
-            card.add(detail)
-            card.body.addStretch(1)
-            button = QPushButton("Управление")
-            button.setProperty("variant", "chip")
-            button.setCursor(Qt.PointingHandCursor)
-            button.setFixedHeight(32)
-            button.clicked.connect(lambda _=False, k=key: self.ctx.navigate(k))
-            card.add(button)
-            engines_row.addWidget(card, 1)
-            self._engine_cards[key] = (detail, badge, button)
-        self.add_layout(engines_row)
+        # Level 1: big status + one-click actions.
+        top = QHBoxLayout()
+        top.setSpacing(14)
+        status_card = GlassCard("Статус подключения", "Что работает прямо сейчас", "shield", p)
+        pills = QHBoxLayout()
+        pills.setSpacing(12)
+        self.zapret_pill = StatusPill("Zapret", p)
+        self.vpn_pill = StatusPill("VPN", p)
+        pills.addWidget(self.zapret_pill, 1)
+        pills.addWidget(self.vpn_pill, 1)
+        status_card.add_layout(pills)
+        top.addWidget(status_card, 3)
 
-        bottom = QHBoxLayout()
-        bottom.setSpacing(14)
-        services = GlassCard("Проверка сервисов", "Последний результат на этой сессии", "target", p)
-        self.services_box = QVBoxLayout()
-        self.services_box.setSpacing(6)
-        services.add_layout(self.services_box)
-        self.services_placeholder = QLabel("Проверка ещё не запускалась")
-        self.services_placeholder.setObjectName("tiny")
-        self.services_box.addWidget(self.services_placeholder)
-        services_button = QPushButton("Проверить сейчас")
-        services_button.setProperty("variant", "chip")
-        services_button.setCursor(Qt.PointingHandCursor)
-        services_button.setFixedHeight(32)
-        services_button.clicked.connect(lambda: self.ctx.navigate("blockcheck"))
-        services.add(services_button)
-        bottom.addWidget(services, 3)
+        fix_card = GlassCard("Быстрые действия", "Одно нажатие — готово", "bolt", p)
+        self.repair_button = QPushButton("Починить сеть")
+        self.repair_button.setIcon(self._icon("wrench"))
+        self.repair_button.setToolTip("flushdns, сброс Winsock и IP-стека, очистка кэша Zentrix")
+        self.repair_button.clicked.connect(self._repair_network)
+        fix_card.add(self.repair_button)
+        self.game_button = QPushButton("Игровой режим")
+        self.game_button.setIcon(self._icon("cpu"))
+        self.game_button.setCheckable(True)
+        self.game_button.setToolTip("Высокий приоритет игр и план питания «Максимальная производительность»")
+        self.game_button.clicked.connect(self._toggle_game_mode)
+        fix_card.add(self.game_button)
+        top.addWidget(fix_card, 2)
+        self.add_layout(top)
 
-        quick = GlassCard("Быстрые действия", "Переход к нужным инструментам", "settings", p)
-        quick_actions = QGridLayout()
-        quick_actions.setContentsMargins(0, 2, 0, 0)
-        quick_actions.setHorizontalSpacing(8)
-        quick_actions.setVerticalSpacing(6)
-        for text, icon_name, target in (
-            ("Обновления компонентов", "download", "updates"),
-            ("Очистка от лишних файлов", "trash", "settings"),
-            ("Мониторинг трафика", "activity", "monitor"),
-            ("Оформление и звук", "palette", "settings"),
+        middle = QHBoxLayout()
+        middle.setSpacing(14)
+        # Quick strategy switch with real measurement.
+        strategy_card = GlassCard("Стратегия Zapret", "Быстрое переключение и подбор", "bolt", p)
+        self.strategy_combo = QComboBox()
+        self.strategy_combo.setMinimumHeight(34)
+        self.strategy_combo.currentIndexChanged.connect(self._strategy_changed)
+        strategy_card.add(self.strategy_combo)
+        best_row = QHBoxLayout()
+        self.best_button = QPushButton("Выбрать лучший")
+        self.best_button.setIcon(self._icon("target"))
+        self.best_button.setToolTip("Поочерёдно проверить стратегии и применить лучшую по реальному замеру")
+        self.best_button.clicked.connect(self._pick_best)
+        best_row.addWidget(self.best_button, 1)
+        self.best_hint = QLabel("Замер по блокчеку сервисов")
+        self.best_hint.setObjectName("tiny")
+        self.best_hint.setWordWrap(True)
+        best_row.addWidget(self.best_hint, 1)
+        strategy_card.add_layout(best_row)
+        middle.addWidget(strategy_card, 3)
+
+        # External IP with change alerts.
+        ip_card = GlassCard("Внешний IP", "Следим за сменой адреса", "globe", p)
+        self.ip_badge = Badge("…", "muted")
+        ip_card.add_header_widget(self.ip_badge)
+        self.ip_value = QLabel("Определяем…")
+        self.ip_value.setObjectName("h2")
+        ip_card.add(self.ip_value)
+        self.ip_place = QLabel("Тост при смене адреса включён")
+        self.ip_place.setObjectName("tiny")
+        self.ip_place.setWordWrap(True)
+        ip_card.add(self.ip_place)
+        refresh = QPushButton("Обновить")
+        refresh.setProperty("variant", "chip")
+        refresh.setCursor(Qt.PointingHandCursor)
+        refresh.setFixedHeight(32)
+        refresh.clicked.connect(self._refresh_ip)
+        ip_card.add(refresh)
+        middle.addWidget(ip_card, 2)
+        self.add_layout(middle)
+
+        # Level 3: small links only, no big blocks on the dashboard.
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+        caption = QLabel("Служебное:")
+        caption.setObjectName("tiny")
+        footer.addWidget(caption)
+        for text, target in (
+            ("Обновления компонентов", "updates"),
+            ("Мониторинг", "monitor"),
+            ("Очистка файлов", "settings"),
+            ("Сценарии и оформление", "settings"),
         ):
-            button = QPushButton(text)
-            button.setIcon(self._icon(icon_name))
-            button.setProperty("variant", "quickAction")
-            button.setCursor(Qt.PointingHandCursor)
-            button.setMinimumHeight(38)
-            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            button.clicked.connect(lambda _=False, t=target: self.ctx.navigate(t))
-            position = quick_actions.count()
-            quick_actions.addWidget(button, position // 2, position % 2)
-        quick.add_layout(quick_actions)
-        bottom.addWidget(quick, 2)
-        self.add_layout(bottom)
+            link = QPushButton(text)
+            link.setProperty("variant", "ghost")
+            link.setCursor(Qt.PointingHandCursor)
+            link.setFixedHeight(28)
+            link.clicked.connect(lambda _=False, t=target: self.ctx.navigate(t))
+            footer.addWidget(link)
+        footer.addStretch(1)
+        self.add_layout(footer)
         self.finish()
 
     def _icon(self, name: str):
@@ -218,99 +287,187 @@ class HomePage(Page):
         return icon(name, self.ctx.palette.accent, 18)
 
     def _connect(self) -> None:
-        for key, engine in (("zapret", self.ctx.zapret), ("vpn", self.ctx.happ),
-                            ("vpn", self.ctx.hiddify)):
-            engine.status_changed.connect(lambda *_, k=key: self._status_refresh(k))
+        for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify):
+            engine.status_changed.connect(lambda *_a: self._refresh_hero())
             engine.log_line.connect(lambda *_: None)
 
-    def _status_refresh(self, key: str) -> None:
-        self._refresh_engine(key)
-        if key == "vpn":
-            
     # ------------------------------------------------------------------- live
     def on_show(self) -> None:
-        self._refresh_all()
+        self._refresh_hero()
+        self._load_strategies()
+        self._refresh_ip()
 
     def on_hide(self) -> None:
         pass
 
-    def _refresh_all(self) -> None:
-        for key in ("zapret", "vpn", "monitor"):
-            self._refresh_engine(key)
-        self._refresh_hero()
-        self._refresh_services()
+    def _game_mode_active(self) -> bool:
+        try:
+            from ... import game_mode
+            return game_mode.instance().active
+        except Exception:
+            return False
 
     def _refresh_hero(self) -> None:
-        engine = self.ctx.zapret
-        running = engine.status == "running"
+        zapret = self.ctx.zapret
+        running = zapret.status == "running"
         self.orb.set_active(running)
         self.hero_badge.update_badge("АКТИВНО" if running else "ВЫКЛЮЧЕНО",
                                      "ok" if running else "muted")
         if running:
-            strategy = engine.active_strategy or self.ctx.settings.get("zapret.strategy", "")
-            self.hero_subtitle.setText(f"Zapret работает · {strategy} · {engine._message}")
+            strategy = zapret.active_strategy or self.ctx.settings.get("zapret.strategy", "")
+            self.hero_subtitle.setText(f"Zapret работает · {strategy} · {zapret._message}")
             self.toggle_button.setText("Остановить обход")
         else:
             strategy = self.ctx.settings.get("zapret.strategy", "general.bat")
             self.hero_subtitle.setText(f"Zapret выключен · выбрана стратегия {strategy}")
             self.toggle_button.setText("Включить обход")
         self.admin_notice.setVisible(not self.ctx.admin())
+        self.zapret_pill.set_state(
+            running,
+            ("Работает · " + (zapret.active_strategy or "стратегия")) if running else "Выключен",
+        )
+        vpn_engine = (self.ctx.happ if self.ctx.settings.get("vpn.core", "xray") == "xray"
+                      else self.ctx.hiddify)
+        vpn_running = vpn_engine.status == "running"
+        node = vpn_engine.selected_node() if vpn_running else None
+        self.vpn_pill.set_state(
+            vpn_running,
+            (node.summary() if node else "Подключено") if vpn_running else "Выключен",
+        )
+        self.game_button.setChecked(self._game_mode_active())
 
-    def _refresh_engine(self, key: str) -> None:
-        engine = (self.ctx.happ if self.ctx.settings.get("vpn.core", "xray") == "xray"
-                  else self.ctx.hiddify) if key == "vpn" else self.ctx.zapret
-        detail, badge, _button = self._engine_cards[key]
-        status = engine.status
-        if key == "vpn" and not engine.core_installed() and status == "stopped":
-            badge.update_badge("НЕТ ЯДРА", "warn")
-            detail.setText("Ядро не установлено — откройте вкладку")
-        elif status == "running":
-            badge.update_badge("РАБОТАЕТ", "ok")
-            # Only proxy engines expose a selected node; Zapret has none.
-            node = engine.selected_node() if hasattr(engine, "selected_node") else None
-            detail.setText(f"{node.summary() if node else 'Подключено'} · {engine._message}")
-        elif status == "error":
-            badge.update_badge("ОШИБКА", "err")
-            detail.setText(engine._message or "Смотрите журнал")
-        elif status in {"starting", "stopping"}:
-            badge.update_badge(STATUS_TEXT.get(status, status).upper(), "info")
-            detail.setText(engine._message)
-        else:
-            badge.update_badge("ВЫКЛЮЧЕН", "muted")
-            detail.setText("Готов к подключению" if key == "zapret" or engine.core_installed()
-                           else "Требуется установка ядра")
-        if key == "zapret":
-            self._refresh_hero()
+    # -------------------------------------------------------------- strategy
+    def _load_strategies(self) -> None:
+        strategies = self.ctx.zapret.strategies()
+        self.strategy_combo.blockSignals(True)
+        self.strategy_combo.clear()
+        for strategy in strategies:
+            self.strategy_combo.addItem(strategy.name, strategy.filename)
+        current = str(self.ctx.settings.get("zapret.strategy", "") or "")
+        index = self.strategy_combo.findData(current)
+        if index >= 0:
+            self.strategy_combo.setCurrentIndex(index)
+        self.strategy_combo.blockSignals(False)
 
-    def _refresh_services(self) -> None:
-        while self.services_box.count():
-            item = self.services_box.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-        results = self.ctx.block_results
-        if not results:
-            label = QLabel("Проверка ещё не запускалась. Нажмите «Проверить сейчас».")
-            label.setObjectName("tiny")
-            label.setWordWrap(True)
-            self.services_box.addWidget(label)
+    def _strategy_changed(self, index: int) -> None:
+        filename = self.strategy_combo.itemData(index)
+        if not filename:
             return
-        for result in results[:6]:
-            row = QWidget()
-            layout = QHBoxLayout(row)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(8)
-            layout.addWidget(QLabel(result.name), 1)
-            kind = {"ok": "ok", "blocked": "err", "unstable": "warn"}.get(result.status, "muted")
-            layout.addWidget(Badge(STATUS_LABELS.get(result.status, result.status), kind), 0)
-            self.services_box.addWidget(row)
+        self.ctx.settings.set("zapret.strategy", filename)
+        self.ctx.notify(f"Стратегия: {self.strategy_combo.itemText(index)}", "info")
+        engine = self.ctx.zapret
+        if engine.status == "running" and self.ctx.admin():
+            run_task(self, lambda: engine.start_with(filename),
+                     on_done=lambda _r: self.ctx.notify("Стратегия применена", "ok"),
+                     on_error=lambda message: self.ctx.notify(f"Zapret: {message}", "err", "error"))
+        self._refresh_hero()
 
-    # --------------------------------------------------------------- actions
+    def _pick_best(self) -> None:
+        from ...strategy_check import search_best_strategy
+
+        if not self.ctx.admin():
+            self._admin_help()
+            return
+        self.best_button.setEnabled(False)
+        self.best_hint.setText("Проверяю стратегии…")
+
+        def _progress(index, total, name):
+            self.best_hint.setText(f"Проверяю {index}/{total}: {name}")
+
+        run_task(self, lambda: search_best_strategy(self.ctx.zapret, progress=_progress),
+                 on_done=self._best_done,
+                 on_error=self._best_failed)
+
+    def _best_done(self, report) -> None:
+        self.best_button.setEnabled(True)
+        if report.error:
+            self.best_hint.setText(report.error)
+        elif report.best is not None:
+            self.best_hint.setText(f"Лучше всех: {report.best.strategy} — {report.best.verdict}")
+            self.ctx.notify(f"Применена лучшая стратегия: {report.best.strategy}", "ok", "enable")
+        else:
+            self.best_hint.setText("Рабочую стратегию не нашли")
+        self._load_strategies()
+        self._refresh_hero()
+
+    def _best_failed(self, message: str) -> None:
+        self.best_button.setEnabled(True)
+        self.best_hint.setText(f"Ошибка: {message}")
+
+    # ----------------------------------------------------------------- actions
+    def _quick_check(self) -> None:
+        page = self.ctx.pages.get("blockcheck")
+        self.ctx.navigate("blockcheck")
+        if page is not None and hasattr(page, "_toggle_run"):
+            page._toggle_run()
+
+    def _repair_network(self) -> None:
+        from ... import nettools
+
+        if not self.ctx.admin():
+            self._admin_help()
+            return
+        self.repair_button.setEnabled(False)
+        self.ctx.notify("Чиню сеть: flushdns → Winsock → сброс IP-стека…", "info")
+
+        run_task(self, lambda: nettools.repair_network(clean_zentrix_cache=True),
+                 on_done=self._repair_done,
+                 on_error=lambda _message: self._repair_done([]))
+
+    def _repair_done(self, rows) -> None:
+        self.repair_button.setEnabled(True)
+        if rows:
+            failed = [title for _key, title, ok in rows if not ok]
+            if failed:
+                self.ctx.notify(f"Сеть: не удалось {', '.join(failed)}", "warn", "error")
+            else:
+                self.ctx.notify("Сеть починена: DNS-кэш, Winsock и IP-стек сброшены", "ok")
+        else:
+            self.ctx.notify("Не удалось починить сеть", "err", "error")
+
+    def _toggle_game_mode(self, checked: bool) -> None:
+        from ... import game_mode
+
+        mode = game_mode.instance()
+        if checked:
+            games = list(self.ctx.settings.section("gamemode").get("games", [])
+                         or ["csgo", "cs2", "valorant", "dota2", "fortnite"])
+            run_task(self, lambda: mode.enable(games),
+                     on_done=lambda message: (self.ctx.notify(message, "ok"),
+                                              self.game_button.setChecked(True)),
+                     on_error=lambda message: (self.ctx.notify(message, "err", "error"),
+                                               self.game_button.setChecked(False)))
+        else:
+            run_task(self, mode.disable,
+                     on_done=lambda message: (self.ctx.notify(message, "info"),
+                                              self.game_button.setChecked(False)),
+                     on_error=lambda message: self.ctx.notify(message, "err", "error"))
+
+    def _refresh_ip(self) -> None:
+        from ... import ipwatch as module
+
+        self.ip_badge.update_badge("…", "muted")
+
+        def _probe():
+            info = module.probe()
+            module.store_ip(info)
+            return info
+
+        run_task(self, _probe, on_done=self._ip_done,
+                 on_error=lambda _message: self.ip_badge.update_badge("НЕТ СВЯЗИ", "err"))
+
+    def _ip_done(self, info) -> None:
+        self.ip_value.setText(str(info.get("ip", "—")))
+        place = ", ".join(str(part) for part in
+                          (info.get("city"), info.get("country_name")) if part)
+        self.ip_place.setText(place or "Тост при смене адреса включён")
+        self.ip_badge.update_badge("ВНЕШНИЙ IP", "ok")
+
     def _toggle_obfuscation(self) -> None:
+        from .. import overlays
+
         engine = self.ctx.zapret
         if engine.status == "running":
-            from ..workers import run_task
-
             run_task(self, engine.stop, on_done=self._after_stop, on_error=self._show_error)
             return
         if not engine.is_available():
@@ -321,8 +478,6 @@ class HomePage(Page):
         if not self.ctx.admin():
             self._admin_help()
             return
-        from ..workers import run_task
-
         self.toggle_button.setEnabled(False)
         run_task(self, engine.start, on_done=self._after_start, on_error=self._start_failed)
 
@@ -347,12 +502,14 @@ class HomePage(Page):
         self.ctx.notify(message, "err", "error")
 
     def _admin_help(self) -> None:
+        from .. import overlays
+
         overlays.confirm(
             self.ctx.overlay,
             "Требуются права администратора",
-            "Zapret использует драйвер WinDivert, поэтому <b>winws.exe</b> запускается только "
-            "от имени администратора.<br><br>Zentrix перезапустится с повышенными правами. "
-            "Текущее окно закроется, настройки сохранятся.",
+            "Zapret использует драйвер WinDivert, а ремонт сети меняет настройки Windows. "
+            "Обе операции требуют повышенных прав.<br><br>Zentrix перезапустится от имени "
+            "администратора. Настройки сохранятся.",
             "Перезапустить от администратора",
             self.ctx.relaunch_admin,
         )
@@ -360,7 +517,6 @@ class HomePage(Page):
     def on_theme(self) -> None:
         p = self.ctx.palette
         self.orb.set_palette(p)
-        for key in ("zapret", "vpn", "monitor"):
-            _detail, _badge, button = self._engine_cards[key]
-            button.setIcon(self._icon("chevron"))
+        for pill in (self.zapret_pill, self.vpn_pill):
+            pill.set_palette(p)
         self._refresh_hero()
