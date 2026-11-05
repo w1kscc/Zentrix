@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidget, QListWidgetItem as QtListWidgetItem
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
+    QButtonGroup, QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
     QVBoxLayout, QWidget,
 )
 
@@ -103,7 +103,7 @@ class VpnPage(QWidget):
         self.ip_card.add_layout(row)
         layout.addWidget(self.ip_card)
 
-        engine_card = GlassCard("Движок и режим", "Ядро, мульти‑прокси и переключение соединений", "settings",
+        self.engine_card = GlassCard("Движок и режим", "Ядро, мульти‑прокси и переключение соединений", "settings",
                                 context.palette)
         selector_row = QHBoxLayout()
         selector_row.setSpacing(10)
@@ -128,31 +128,39 @@ class VpnPage(QWidget):
         self.multi_hint = QLabel("Новые TCP‑соединения распределяются между серверами.")
         self.multi_hint.setObjectName("tiny")
         self.multi_hint.setWordWrap(True)
-        engine_card.add_layout(selector_row)
-        engine_card.add(self.multi_hint)
-        layout.addWidget(engine_card)
+        self.engine_card.add_layout(selector_row)
+        self.engine_card.add(self.multi_hint)
 
-        # The two extra cards get their own scroll area: the stacked proxy
-        # pages below own the page height, and without this the layout
-        # squeezes the cards into an unreadable mush on smaller windows.
-        from PySide6.QtWidgets import QScrollArea, QSizePolicy
+        # Sub-tab chips: every section fits one screen, nothing to scroll.
+        chips = QHBoxLayout()
+        chips.setSpacing(8)
+        self.section_group = QButtonGroup(self)
+        self.section_group.setExclusive(True)
+        self.section_buttons: dict[str, QPushButton] = {}
+        for key, label in (("connect", "Подключение"),
+                           ("servers", "Серверы и подписки"),
+                           ("keys", "Ключи · BETA")):
+            button = QPushButton(label)
+            button.setProperty("variant", "chip")
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            self.section_group.addButton(button)
+            button.clicked.connect(lambda _=False, k=key: self.show_section(k))
+            chips.addWidget(button)
+            self.section_buttons[key] = button
+        chips.addStretch(1)
+        layout.addLayout(chips)
 
-        extra_container = QWidget()
-        extra_layout = QVBoxLayout(extra_container)
-        extra_layout.setContentsMargins(0, 0, 0, 0)
-        extra_layout.setSpacing(14)
-        self._build_servers_card(extra_layout, context)
-        self._build_beta_card(extra_layout, context)
-        extra_scroll = QScrollArea()
-        extra_scroll.setWidgetResizable(True)
-        extra_scroll.setFrameShape(QScrollArea.NoFrame)
-        extra_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        extra_scroll.setWidget(extra_container)
-        extra_scroll.setMinimumHeight(220)
-        extra_scroll.setMaximumHeight(340)
-        extra_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        layout.addWidget(extra_scroll)
+        self.sections = QStackedWidget()
+        self.sections.setObjectName("pageStack")
 
+        # --- section: Подключение (IP + движок + список серверов ядра)
+        connect_view = QWidget()
+        connect_layout = QVBoxLayout(connect_view)
+        connect_layout.setContentsMargins(0, 0, 0, 0)
+        connect_layout.setSpacing(14)
+        connect_layout.addWidget(self.ip_card)
+        connect_layout.addWidget(self.engine_card)
         self.stack = QStackedWidget()
         self.xray_page = HappPage(context)
         self.singbox_page = HiddifyPage(context)
@@ -161,7 +169,29 @@ class VpnPage(QWidget):
         self.singbox_page.column.setContentsMargins(0, 0, 0, 0)
         self.stack.addWidget(self.xray_page)
         self.stack.addWidget(self.singbox_page)
-        layout.addWidget(self.stack, 1)
+        connect_layout.addWidget(self.stack, 1)
+        self.sections.addWidget(connect_view)
+
+        # --- section: Серверы и подписки
+        servers_view = QWidget()
+        servers_layout = QVBoxLayout(servers_view)
+        servers_layout.setContentsMargins(0, 0, 0, 0)
+        servers_layout.setSpacing(14)
+        self._build_servers_card(servers_layout, context)
+        servers_layout.addStretch(1)
+        self.sections.addWidget(servers_view)
+
+        # --- section: Ключи · BETA
+        keys_view = QWidget()
+        keys_layout = QVBoxLayout(keys_view)
+        keys_layout.setContentsMargins(0, 0, 0, 0)
+        keys_layout.setSpacing(14)
+        self._build_beta_card(keys_layout, context)
+        keys_layout.addStretch(1)
+        self.sections.addWidget(keys_view)
+
+        layout.addWidget(self.sections, 1)
+        self.section_buttons["connect"].setChecked(True)
         for engine in (context.happ, context.hiddify):
             engine.status_changed.connect(self._engine_status_changed)
         self._core_changed(self.core_selector.currentIndex())
@@ -354,7 +384,7 @@ class VpnPage(QWidget):
         beta_row.addStretch(1)
         card.add_layout(beta_row)
         self.beta_results = QListWidget()
-        self.beta_results.setFixedHeight(150)
+        self.beta_results.setMinimumHeight(220)
         self.beta_results.setVisible(bool(context.settings.get("freekeys.enabled", False)))
         card.add(self.beta_results)
         layout.addWidget(card)
@@ -519,11 +549,27 @@ class VpnPage(QWidget):
                  on_error=lambda message: (self.subs_now.setEnabled(True),
                                            self.ctx.notify(f"Подписки: {message}", "err", "error")))
 
+    def show_section(self, key: str) -> None:
+        """Switch the VPN sub-tab; proxy pages refresh only when visible."""
+        for name, button in self.section_buttons.items():
+            button.setChecked(name == key)
+        leaving = self.sections.currentWidget()
+        self.sections.setCurrentIndex(
+            list(self.section_buttons).index(key))
+        if key == "keys":
+            self._restore_beta_settings()
+            self._render_free_nodes(getattr(self.ctx, "free_keys_cache", []))
+        if key == "connect":
+            if leaving is not self.sections.widget(0):
+                self.active_page.on_show()
+            self._update_ip_state()
+
     def on_show(self) -> None:
-        self.active_page.on_show()
-        self._update_ip_state()
         self._restore_beta_settings()
         self._render_free_nodes(getattr(self.ctx, "free_keys_cache", []))
+        if self.sections.currentIndex() == 0:
+            self.active_page.on_show()
+            self._update_ip_state()
 
     def _restore_beta_settings(self) -> None:
         saved = set(self.ctx.settings.get("freekeys.categories", []) or [])
