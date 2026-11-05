@@ -40,11 +40,22 @@ REPAIR_STEPS = (
 )
 
 
+def _decode(raw: bytes) -> str:
+    """Windows console utilities (ping/tracert/netsh) print in OEM CP866;
+    try UTF-8 first, then the OEM/ANSI codepages."""
+    for codec in ("utf-8", "cp866", "cp1251"):
+        try:
+            return raw.decode(codec)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
 def _run(args: list[str], timeout: float = 30.0) -> tuple[int, str]:
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout,
-                               creationflags=0x08000000)  # CREATE_NO_WINDOW
-        output = (result.stdout or "") + (result.stderr or "")
+        result = subprocess.run(args, capture_output=True, timeout=timeout,
+                                creationflags=0x08000000)  # CREATE_NO_WINDOW
+        output = _decode(result.stdout or b"") + _decode(result.stderr or b"")
         return result.returncode, output.strip()
     except FileNotFoundError:
         return -1, f"Утилита не найдена: {args[0]}"
