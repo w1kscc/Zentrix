@@ -39,6 +39,7 @@ PAGE_MODULES = (
     "src.ui.pages.happ",
     "src.ui.pages.hiddify",
     "src.ui.pages.proxy_page",
+    "src.ui.pages.tools",
     "src.ui.pages.vpn",
     "src.ui.pages.monitor",
     "src.ui.pages.blockcheck",
