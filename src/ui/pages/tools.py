@@ -256,18 +256,47 @@ class ToolsPage(Page):
                  on_error=lambda message: self.hosts_label.setText(f"Ошибка: {message}"))
 
     # ------------------------------------------------------------ diagnostics
+    @staticmethod
+    def _normalize_target(text: str) -> tuple[str, int | None]:
+        """Accept URLs like https://host/path, host:port or bare hosts.
+
+        Returns (host, port_hint). The path part is dropped; the scheme
+        selects the default port (https -> 443, http -> 80).
+        """
+        from urllib.parse import urlparse
+
+        raw = text.strip()
+        if not raw:
+            return "", None
+        had_scheme = "://" in raw
+        if not had_scheme:
+            raw = "http://" + raw
+        parsed = urlparse(raw)
+        host = parsed.hostname or raw
+        port = parsed.port
+        if port is None and had_scheme:
+            port = 443 if parsed.scheme == "https" else (80 if parsed.scheme == "http" else None)
+        return host, port
+
     def _run_diag(self) -> None:
-        host = self.diag_host.text().strip()
+        raw = self.diag_host.text().strip()
         mode = self.diag_mode.currentData()
-        if not host:
-            self.diag_output.setText("Введите домен или IP")
+        if not raw:
+            self.diag_output.setText("Введите домен, IP или URL (https://…)")
             return
-        self.diag_output.setText("Выполняю…")
+        host, port_hint = self._normalize_target(raw)
+        if not host:
+            self.diag_output.setText(f"Не удалось разобрать адрес: {raw}")
+            return
+        self.diag_output.setText(f"Выполняю · цель: {host}" +
+                                 (f":{port_hint}" if port_hint else "") + "…")
+        ports = [port_hint] if port_hint else []
+        ports += [p for p in (80, 443, 53) if p not in ports]
         functions = {
             "ping": lambda: self._fmt_ping(nettools.icmp_ping(host)),
             "traceroute": lambda: nettools.traceroute(host)[:1200] or "Маршрут не построился",
             "whois": lambda: (nettools.whois_query(host)[:900] or "Нет данных"),
-            "ports": lambda: self._fmt_ports(nettools.port_scan(host, [80, 443, 53])),
+            "ports": lambda: self._fmt_ports(nettools.port_scan(host, ports)),
         }
         run_task(self, functions[mode],
                  on_done=lambda text: self.diag_output.setText(text),

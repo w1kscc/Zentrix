@@ -195,12 +195,13 @@ def icmp_ping(host: str, count: int = 4) -> tuple[bool, float, str]:
     if code != 0:
         return False, 0.0, output[-300:]
     latencies = []
+    import re
     for line in output.splitlines():
-        if "TTL=" in line.upper() or "time<" in line.lower():
-            import re
-            match = re.search(r"(?:time[=<]\s?|time=)(\d+) ?мс|time[=<]\s?(\d+) ?ms", line)
-            if match:
-                latencies.append(int(match.group(1) or match.group(2)))
+        match = re.search(r"[<|=](\d+)[ ]?(?:мс|ms)", line, re.IGNORECASE)
+        if not match:
+            match = re.search(r"time[=<]\s?(\d+)", line, re.IGNORECASE)
+        if match:
+            latencies.append(int(match.group(1)))
     alive = bool(latencies) or "TTL=" in output
     avg = round(sum(latencies) / len(latencies)) if latencies else 0.0
     return alive, float(avg), output[-300:]
