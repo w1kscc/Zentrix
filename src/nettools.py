@@ -42,7 +42,8 @@ REPAIR_STEPS = (
 
 def _run(args: list[str], timeout: float = 30.0) -> tuple[int, str]:
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(args, capture_output=True, text=True, timeout=timeout,
+                               creationflags=0x08000000)  # CREATE_NO_WINDOW
         output = (result.stdout or "") + (result.stderr or "")
         return result.returncode, output.strip()
     except FileNotFoundError:
