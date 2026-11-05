@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from .. import paths, winapi
-from ..engines import HappEngine, HiddifyEngine, ShareProxyEngine, ZapretEngine
+from ..engines import HappEngine, HiddifyEngine, ZapretEngine
 from ..logger import get_logger
 from ..settings_store import settings as global_settings
 from ..sound_generator import SoundManager
@@ -50,8 +50,7 @@ class AppContext(QObject):
         self.zapret = ZapretEngine(self)
         self.happ = HappEngine(self)
         self.hiddify = HiddifyEngine(self)
-        self.share = ShareProxyEngine(self)
-        for engine in (self.zapret, self.happ, self.hiddify, self.share):
+        for engine in (self.zapret, self.happ, self.hiddify):
             threading.Thread(target=engine.adopt_stale_pid, daemon=True,
                              name=f"stale-{engine.key}").start()
 
@@ -169,7 +168,7 @@ class AppContext(QObject):
             self.stop_monitor()
         except Exception:
             pass
-        for engine in (self.zapret, self.happ, self.hiddify, self.share):
+        for engine in (self.zapret, self.happ, self.hiddify):
             try:
                 engine.cleanup()
             except Exception:

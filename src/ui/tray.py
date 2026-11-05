@@ -55,9 +55,6 @@ class TrayController(QObject):
         self.engine_action.triggered.connect(self.window.toggle_zapret)
         vpn_action = self.menu.addAction("VPN")
         vpn_action.triggered.connect(lambda: self.window.show_page("vpn"))
-        share_action = self.menu.addAction("Прокси‑шеринг")
-        share_action.triggered.connect(lambda: self.window.show_page("proxy_share"))
-        self.menu.addSeparator()
 
         check_action = self.menu.addAction("Проверить блокировки")
         check_action.triggered.connect(lambda: self.window.show_page("blockcheck"))

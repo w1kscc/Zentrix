@@ -29,7 +29,6 @@ NAV = (
     ("home", "Главная", "home", ""),
     ("zapret", "Zapret", "bolt", ""),
     ("vpn", "VPN", "globe", ""),
-    ("proxy_share", "Шеринг", "wifi", ""),
     ("monitor", "Мониторинг", "activity", ""),
     ("blockcheck", "Проверки", "target", ""),
     ("updates", "Обновления", "download", ""),
@@ -40,7 +39,6 @@ PAGE_MODULES = {
     "home": ("home", "HomePage"),
     "zapret": ("zapret", "ZapretPage"),
     "vpn": ("vpn", "VpnPage"),
-    "proxy_share": ("proxy_share", "ProxySharePage"),
     "monitor": ("monitor", "MonitorPage"),
     "blockcheck": ("blockcheck", "BlockCheckPage"),
     "updates": ("updates", "UpdatesPage"),
@@ -472,7 +470,7 @@ class MainWindow(QMainWindow):
     def _refresh_status(self) -> None:
         zapret = self.ctx.zapret.status == "running"
         proxy = any(engine.status == "running"
-                    for engine in (self.ctx.happ, self.ctx.hiddify, self.ctx.share))
+                    for engine in (self.ctx.happ, self.ctx.hiddify))
         if zapret and proxy:
             self.titlebar.set_status("Обход и прокси активны", "ok")
         elif zapret:
@@ -480,7 +478,7 @@ class MainWindow(QMainWindow):
         elif proxy:
             self.titlebar.set_status("Прокси активен", "info")
         elif any(engine.status in {"starting", "stopping"}
-                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify, self.ctx.share)):
+                 for engine in (self.ctx.zapret, self.ctx.happ, self.ctx.hiddify)):
             self.titlebar.set_status("Подключение…", "info")
         else:
             self.titlebar.set_status("Обход выключен", "muted")
