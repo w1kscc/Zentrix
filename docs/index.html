@@ -46,24 +46,33 @@
         <h1>Один клик.<br>Никаких <span class="grad">консолей</span>.</h1>
 
         <p class="lede">
-          Zentrix собирает Zapret и VPN на Xray или sing-box в одно аккуратное окно Windows.
-          Запускает стратегии обхода напрямую через <code>winws.exe</code> —
-          без <code>cmd.exe</code>, без мигающих чёрных окон и без россыпи
-          <code>.bat</code>-файлов на рабочем столе.
+          Zentrix собирает <b>Zapret</b>, <b>VPN</b> (Xray / sing-box) и <b>TG WS Proxy</b>
+          в одно аккуратное окно Windows. Запускает стратегии обхода напрямую через
+          <code>winws.exe</code> — без <code>cmd.exe</code>, без мигающих чёрных окон и без
+          россыпи <code>.bat</code>-файлов на рабочем столе. Мост Telegram работает
+          прямо внутри приложения.
         </p>
 
       </div>
 
 <div class="mock app-demo" id="appDemo">
-        <div class="win"><i></i><i></i><i></i><span>ZENTRIX · v1.1.6</span>
-            <span class="pill"><i class="dot on"></i>TG Proxy · работает</span>
-          <span class="pill"><i class="dot"></i>Обход выключен</span>
+        <div class="win" style="display:flex;align-items:center;justify-content:space-between;padding:0 0 0 14px">
+          <span style="font-weight:700;letter-spacing:2px;font-size:12px">ZENTRIX <small style="opacity:.6;font-weight:400;letter-spacing:0">v1.1.6</small></span>
+          <span style="display:flex;align-items:center;gap:10px">
+            <span class="pill" data-run-pill><i class="dot on" data-run-dot></i><span data-run-text>Zapret активен</span></span>
+            <span style="display:flex;gap:2px">
+              <span style="width:44px;text-align:center;opacity:.55;padding:12px 0">–</span>
+              <span style="width:44px;text-align:center;opacity:.55;padding:12px 0">▢</span>
+              <span style="width:44px;text-align:center;opacity:.55;padding:12px 0">×</span>
+            </span>
+          </span>
         </div>
         <div class="app">
 
           <aside class="app-nav">
             <button data-page="home" class="on" data-glyph="⌂"><span>Главная</span></button>
             <button data-page="zapret" data-glyph="⚡"><span>Zapret</span></button>
+            <button data-page="tgws" data-glyph="🔗"><span>TG WS Proxy</span></button>
             <button data-page="vpn" data-glyph="🌐"><span>VPN</span></button>
             <button data-page="check" data-glyph="◎"><span>Проверки</span></button>
             <button data-page="tools" data-glyph="🔧"><span>Инструменты</span></button>
@@ -77,202 +86,222 @@
 
             <!-- Главная -->
             <section class="page on" data-page="home">
-              <div class="pg-head"><h4>Главная</h4><p>Zapret и VPN-подключения — под одним стеклом</p></div>
+              <div class="pg-head"><h4>Главная</h4><p>Всё главное — сразу после запуска</p></div>
               <div class="a-hero">
                 <div>
-                  <span class="chip" data-run-badge>ВЫКЛЮЧЕНО</span>
+                  <span class="chip" data-run-badge>АКТИВНО</span>
                   <div class="a-hero-title">Обход блокировок<br>под контролем</div>
-                  <p data-run-status>Zapret выключен · выбрана стратегия general (FAKE TLS AUTO ALT3).bat</p>
+                  <p data-run-status>Zapret работает · general (ALT8).bat · PID 12220</p>
                   <div class="a-row">
-                    <span class="a-btn primary" data-run>Включить обход</span>
+                    <span class="a-btn primary" data-run>Остановить обход</span>
                     <span class="a-btn">Проверить блокировки</span>
+                    <span class="a-btn">Включить TG Proxy</span>
                   </div>
                 </div>
-                <div class="a-orb">🛡</div>
-              </div>
-              <div class="a-engines">
-                <div class="a-card">
-                  <h5>⚡ Zapret <span class="chip">ВЫКЛЮЧЕН</span></h5>
-                  <p class="a-sub">DPI-обход через winws</p>
-                  <span class="a-manage">› Управление</span>
-                </div>
-                <div class="a-card">
-                  <h5>🌐 VPN <span class="chip">ВЫКЛЮЧЕН</span></h5>
-                  <p class="a-sub">Общие профили · Xray / sing-box</p>
-                  <span class="a-manage">› Управление</span>
-                </div>
-                <div class="a-card">
-                  <h5>📶 Проверки <span class="chip">ВЫКЛЮЧЕНО</span></h5>
-                  <p class="a-sub">Подключение устройств в LAN · BETA</p>
-                  <span class="a-manage">› Управление</span>
+                <div style="width:120px;height:120px;border-radius:50%;border:1px solid rgba(124,92,255,.45);display:flex;align-items:center;justify-content:center;background:radial-gradient(circle, rgba(124,92,255,.28), transparent 70%)">
+                  <div style="width:64px;height:64px;border-radius:50%;border:1px solid rgba(124,92,255,.6);display:flex;align-items:center;justify-content:center;font-size:26px">🛡</div>
                 </div>
               </div>
-              <div class="a-cards two">
-                <div class="a-card"><h5>◎ Проверка сервисов</h5>
-                  <p>Проверка ещё не запускалась. Нажмите «Проверить сейчас».</p>
-                  <span class="a-manage">Проверить сейчас</span>
-                </div>
-                <div class="a-card"><h5>⚡ Быстрые действия</h5>
-                  <div class="a-quick">
-                    <span>↓ Обновления компонентов</span>
-                    <span>◔ Мониторинг трафика</span>
-                    <span>✦ Очистка от лишних файлов</span>
-                    <span>♪ Оформление и звук</span>
+              <div class="a-cards two" style="margin-top:12px">
+                <div class="a-card">
+                  <h5>Статус подключения</h5>
+                  <div class="a-row" style="gap:8px;flex-wrap:wrap">
+                    <span class="pill" style="min-width:0"><i class="dot on"></i> Zapret · работает</span>
+                    <span class="pill" style="min-width:0"><i class="dot"></i> VPN · выключен</span>
+                    <span class="pill" style="min-width:0"><i class="dot on"></i> TG Proxy · работает</span>
                   </div>
                 </div>
+                <div class="a-card">
+                  <h5>Быстрые действия</h5>
+                  <span class="a-btn" style="width:100%;text-align:center;margin-bottom:8px">🔧 Починить сеть</span>
+                  <p class="a-sub">flushdns → Winsock → сброс IP-стека → кэш Zentrix</p>
+                </div>
               </div>
-              <div class="a-card"><h5>🔗 TG WS Proxy <span class="chip ok">ВСТРОЕН</span></h5>
-                <p class="a-sub">Мост Telegram через WebSocket на ядре Flowseal/tg-ws-proxy —
-                работает внутри Zentrix, без сторонних окон. Включение, порт,
-                автозапуск, «Открыть в Telegram». Обновляется с GitHub-релизов.</p></div>
+              <div class="a-cards two" style="margin-top:12px">
+                <div class="a-card">
+                  <h5>Стратегия Zapret</h5>
+                  <div class="a-row">
+                    <span class="a-btn on" style="flex:1;text-align:center">general (ALT8)</span>
+                  </div>
+                  <div class="a-row" style="margin-top:8px">
+                    <span class="a-btn" data-best style="flex:1;text-align:center">◎ Выбрать лучший</span>
+                    <span class="a-sub">Замер по блокчеку сервисов</span>
+                  </div>
+                </div>
+                <div class="a-card">
+                  <h5>Внешний IP</h5>
+                  <p class="a-sub" style="font-size:15px;opacity:.85">•••.•••.•••.•••</p>
+                  <p class="a-sub">Следим за сменой адреса — тост при изменении</p>
+                </div>
+              </div>
+              <p class="a-sub" style="margin-top:12px">Служебное: Обновления компонентов · Мониторинг · Очистка файлов · Сценарии и оформление</p>
             </section>
 
             <!-- Zapret -->
             <section class="page" data-page="zapret">
-              <div class="pg-head"><h4>Zapret</h4><p>GUI-обёртка над zapret-discord-youtube 1.10.4 · winws без консолей</p></div>
-              <div class="a-hero">
-                <div>
-                  <span class="chip" data-run-badge>ВЫКЛЮЧЕН</span>
-                  <div class="a-hero-title small">Стратегия: general (FAKE TLS AUTO ALT3)</div>
-                  <p data-run-status>Движок не запущен</p>
-                  <div class="a-row">
-                    <span class="a-btn primary" data-run>Запустить</span>
-                    <span class="a-btn">Перезапустить</span>
-                    <span class="a-btn">Проверить стратегию</span>
-                    <span class="a-btn ghosted">Команда winws</span>
-                  </div>
-                </div>
-                <div class="a-orb">⚡</div>
-              </div>
-              <div class="a-cols">
-                <div class="a-card grow">
-                  <h5>▽ Стратегии
-                    <span class="a-mini-btn">◎ Поиск лучшей стратегии</span>
-                    <span class="a-mini-btn">Полный перебор</span>
-                  </h5>
-                  <input class="a-input" placeholder="Поиск по названию…" value="general" readonly>
-                  <div class="a-list" data-select-group>
-                    <div class="a-item"><b>general</b><span class="tag">General</span></div>
-                    <div class="a-item"><b>general (FAKE TLS AUTO ALT)</b><span class="tag">Fake TLS</span></div>
-                    <div class="a-item sel"><b>general (FAKE TLS AUTO ALT3)</b><span class="tag">Fake TLS</span></div>
-                    <div class="a-item"><b>general (FAKE TLS AUTO)</b><span class="tag">Fake TLS</span></div>
-                    <div class="a-item"><b>general (ALT)</b><span class="tag">ALT</span></div>
-                    <div class="a-item"><b>general (ALT10)</b><span class="tag">ALT</span></div>
-                    <div class="a-item"><b>general (SIMPLE FAKE)</b><span class="tag">Simple</span></div>
-                  </div>
-                </div>
-                <div class="a-side">
-                  <div class="a-card"><h5>📁 Расположение</h5>
-                    <input class="a-input" value="C:\…\engines\zapret" readonly>
-                    <div class="a-row" style="margin-top:8px">
-                      <span class="a-btn" style="flex:1;justify-content:center">Обзор…</span>
-                      <span class="a-btn primary" style="flex:1;justify-content:center">Применить</span>
-                    </div>
-                    <div class="a-tgl-row"><span>Автозапуск в Zentrix</span><span class="a-toggle"><i></i></span></div>
-                    <div class="a-tgl-row"><span>Запуск при старте Windows</span><span class="a-toggle"><i></i></span></div>
-                  </div>
-                  <div class="a-card"><h5>↓ Обход</h5>
-                    <p class="a-sub" style="margin-bottom:8px">Обновление списков из репозитория zapret-discord-youtube</p>
-                    <div class="a-row">
-                      <span class="a-btn" style="flex:1;justify-content:center">Обновить IPSet</span>
-                      <span class="a-btn" style="flex:1;justify-content:center">Обновить hosts</span>
-                    </div>
-                  </div>
-                  <div class="a-card"><h5>☼ Состояние</h5>
-                    <p>PID: —<br>Права: администратор<br>Движок: C:\…\engines\zapret</p>
-                  </div>
+              <div class="pg-head"><h4>Zapret</h4><p>Обход DPI через winws без консолей</p></div>
+              <div class="a-card" style="margin-bottom:10px">
+                <h5><span class="chip ok" data-zap-badge>РАБОТАЕТ</span> Стратегия: <span data-zap-strategy>general (ALT8)</span></h5>
+                <div class="a-row">
+                  <span class="a-btn primary" data-zap-run>Остановить</span>
+                  <span class="a-btn">Перезапустить</span>
+                  <span class="a-btn">Проверить стратегию</span>
                 </div>
               </div>
-              <div class="a-card" style="margin-top:10px">
-                <h5>▽ Игровой фильтр <span class="chip warn">2 игры</span></h5>
-                <p>Режим исключений: Zapret не применяется к выбранным играм — Zapret работает на весь ПК, но останавливается на время матча. Чистый пинг как по LAN.</p>
+              <div class="a-cards two">
+                <div class="a-card">
+                  <h5>Стратегии <span class="chip">22 файла .bat</span></h5>
+                  <p class="a-sub" data-strategy-list>general · general (FAKE TLS AUTO) · general (ALT) · general (ALT2) · general (ALT3) · general (ALT8) · general (ALT13)…</p>
+                  <div class="a-row" style="margin-top:8px">
+                    <span class="a-btn" data-zap-search>Поиск лучшей стратегии</span>
+                  </div>
+                </div>
+                <div class="a-card">
+                  <h5>Игровой фильтр портов</h5>
+                  <div class="a-row"><span class="a-btn">Режим: выключен</span><span class="a-btn">Свои бан-листы</span></div>
+                  <p class="a-sub">Watchdog перезапустит winws автоматически (до 3 попыток)</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- TG WS Proxy -->
+            <section class="page" data-page="tgws">
+              <div class="pg-head"><h4>TG WS Proxy</h4><p>Мост Telegram Desktop через WebSocket — работает внутри Zentrix</p></div>
+              <div class="a-card" style="margin-bottom:10px">
+                <h5><span class="chip ok" data-tg-badge>РАБОТАЕТ</span> MTProto 127.0.0.1 → WebSocket → Telegram DC</h5>
+                <div class="a-row">
+                  <span class="a-btn primary" data-tg-run>Выключить TG WS Proxy</span>
+                  <span class="a-btn">Открыть в Telegram</span>
+                  <span class="a-btn">Копировать ссылку</span>
+                </div>
+              </div>
+              <div class="a-cards two">
+                <div class="a-card">
+                  <h5>Настройки моста</h5>
+                  <div class="a-tgl-row"><span>Порт 1443 · MTProto</span><span class="a-toggle on"><i></i></span></div>
+                  <div class="a-tgl-row"><span>Автозапуск в Zentrix</span><span class="a-toggle on"><i></i></span></div>
+                  <div class="a-tgl-row"><span>CfProxy fallback</span><span class="a-toggle on"><i></i></span></div>
+                  <div class="a-tgl-row"><span>HTTP/2 медиа</span><span class="a-toggle on"><i></i></span></div>
+                </div>
+                <div class="a-card">
+                  <h5>Ядро</h5>
+                  <p class="a-sub">Flowseal/tg-ws-proxy · версия 1.11.4</p>
+                  <span class="a-btn" style="margin-top:8px;display:inline-block">Скачать / обновить ядро</span>
+                  <p class="a-sub" style="margin-top:8px">Обновляется из GitHub-релизов: валидация архива, атомарная замена, откат при ошибке.</p>
+                </div>
               </div>
             </section>
 
             <!-- VPN -->
             <section class="page" data-page="vpn">
-              <div class="pg-head"><h4>VPN</h4><p>Один список серверов для Xray и sing-box</p></div>
-              <div class="a-card">
-                <h5>Ваш IP-адрес <span class="chip ok">IP / GEOIP</span></h5>
-                <div class="a-panels">
-                  <div class="a-panel"><div class="cap">БЕЗ VPN</div><div class="ip"><span class="mask">ххх.ххх.ххх.ххх</span></div><div class="geo">•••••• •, •••••••</div></div>
-                  <div class="a-panel"><div class="cap">ЧЕРЕЗ VPN</div><div class="ip"><span class="mask">ххх.ххх.ххх.ххх</span></div><div class="geo">•••••••, •••••••</div></div>
-                </div>
-                <p style="margin-top:8px">Адреса и геолокация скрыты на сайте — данные видны только вам в приложении.</p>
+              <div class="pg-head"><h4>VPN</h4><p>Единый список серверов для Xray и sing-box</p></div>
+              <div class="a-row" style="margin-bottom:10px">
+                <span class="a-btn on">Подключение</span><span class="a-btn">Серверы и подписки</span>
               </div>
-              <div class="a-card" style="margin-top:10px">
+              <div class="a-cards two" style="margin-bottom:10px">
+                <div class="a-card">
+                  <h5>БЕЗ VPN</h5>
+                  <p class="a-sub" style="font-size:15px;opacity:.85">•••.•••.•••.•••</p>
+                  <p class="a-sub">Город и страна скрыты для сайта</p>
+                </div>
+                <div class="a-card">
+                  <h5>ЧЕРЕЗ VPN</h5>
+                  <p class="a-sub">🔒 Подключитесь, чтобы проверить IP через туннель</p>
+                </div>
+              </div>
+              <div class="a-card" style="margin-bottom:10px">
                 <h5>Движок и режим</h5>
                 <div class="a-row">
                   <span class="a-btn on">Xray · Happ</span>
                   <span class="a-btn">sing-box · Hiddify</span>
                   <span class="a-btn">Мульти-прокси · ВЫКЛ</span>
-                  <span class="chip warn" style="align-self:center">BETA</span>
                 </div>
               </div>
-            </section>
-
-
-            <!-- Инструменты -->
-            <section class="page" data-page="tools">
-              <div class="pg-head"><h4>Инструменты</h4><p>Починка сети, DNS, hosts и диагностика — в один клик</p></div>
-              <div class="a-card"><h5>🔧 Починить сеть <span class="chip ok">ГОТОВО</span></h5>
-                <p class="a-sub">flushdns → Winsock → сброс IP-стека → кэш Zentrix</p></div>
-              <div class="a-card"><h5>🌐 Смена DNS</h5>
-                <p class="a-sub">Cloudflare · Google · AdGuard · Family · DHCP</p></div>
-              <div class="a-card"><h5>📋 hosts-редактор</h5>
-                <p class="a-sub">Анти-рекламный пресет, групповое вкл/выкл записей</p></div>
-            </section>
-
-            <!-- Мониторинг -->
-            <section class="page" data-page="monitor">
-              <div class="pg-head"><h4>Мониторинг</h4><p>Скорость интерфейсов и активные TCP-соединения</p></div>
-              <div class="a-stats">
-                <div class="a-stat"><div class="cap">ВХОДЯЩАЯ СКОРОСТЬ</div><div class="val">0 Б/с</div></div>
-                <div class="a-stat"><div class="cap">ИСХОДЯЩАЯ СКОРОСТЬ</div><div class="val">0 Б/с</div></div>
-                <div class="a-stat"><div class="cap">СОЕДИНЕНИЯ</div><div class="val">0</div></div>
-              </div>
-              <div class="a-chart" style="margin-bottom:10px">
-                <svg viewBox="0 0 300 130" preserveAspectRatio="none">
-                  <g stroke="rgba(255,255,255,.07)"><line x1="0" y1="33" x2="300" y2="33"/><line x1="0" y1="66" x2="300" y2="66"/><line x1="0" y1="99" x2="300" y2="99"/></g>
-                  <path d="M0,100 C25,60 45,45 70,52 S110,90 140,60 S190,20 220,34 S270,58 300,42 L300,130 L0,130 Z" fill="rgba(124,92,255,.22)"/>
-                  <path d="M0,100 C25,60 45,45 70,52 S110,90 140,60 S190,20 220,34 S270,58 300,42" fill="none" stroke="#7c5cff" stroke-width="2"/>
-                </svg>
-              </div>
-              <div class="a-card">
-                <h5>Активные соединения</h5>
-                <p>Мониторинг остановлен — нажмите «Запустить». Адреса соединений скрыты на сайте.</p>
+              <div class="a-cards two">
+                <div class="a-card">
+                  <h5>Серверы и подписки</h5>
+                  <div class="a-row" style="margin-bottom:6px"><span class="a-btn" style="flex:1;text-align:center">Ping серверов</span><span class="a-btn" style="flex:1;text-align:center">Выбрать лучший</span></div>
+                  <p class="a-sub">Подписки: URL + авто-обновление по интервалу. Поиск бесплатных ключей (BETA) — с выбором категорий и протоколов.</p>
+                </div>
+                <div class="a-card">
+                  <h5>Параметры подключения</h5>
+                  <div class="a-tgl-row"><span>Системный прокси</span><span class="a-toggle on"><i></i></span></div>
+                  <div class="a-tgl-row"><span>Автозапуск в Zentrix</span><span class="a-toggle"><i></i></span></div>
+                  <span class="a-btn" style="margin-top:8px;display:inline-block">Проверить задержку</span>
+                </div>
               </div>
             </section>
 
             <!-- Проверки -->
             <section class="page" data-page="check">
-              <div class="pg-head"><h4>Проверка блокировок</h4><p>Что работает, что заблокировано и чем именно</p></div>
-              <div class="a-card">
-                <h5>Диагностика сервисов <span class="chip">3 из 9 доступно</span></h5>
-                <div class="a-list">
-                  <div class="a-item"><b>YouTube</b><span class="tag" style="color:var(--green)">Доступен · 84 мс</span></div>
-                  <div class="a-item"><b>Discord</b><span class="tag" style="color:#ff8098">Заблокирован · SNI</span></div>
-                  <div class="a-item"><b>Telegram</b><span class="tag" style="color:var(--green)">Доступен · 61 мс</span></div>
-                  <div class="a-item"><b>Steam</b><span class="tag" style="color:#f0c876">Нестабильно</span></div>
-                  <div class="a-item"><b>GitHub</b><span class="tag" style="color:var(--green)">Доступен · 47 мс</span></div>
-                  <div class="a-item"><b>Spotify</b><span class="tag" style="color:var(--green)">Доступен · 92 мс</span></div>
+              <div class="pg-head"><h4>Проверки</h4><p>DNS · TCP · TLS/SNI + история за 7 дней (SQLite)</p></div>
+              <div class="a-card" style="margin-bottom:10px">
+                <h5>Сервисы</h5>
+                <div class="a-row" style="flex-wrap:wrap;gap:6px">
+                  <span class="chip ok">YouTube · доступен</span>
+                  <span class="chip ok">Discord · доступен</span>
+                  <span class="chip ok">Telegram · доступен</span>
+                  <span class="chip">Instagram · нестабильно</span>
+                  <span class="chip ok">Steam · доступен</span>
+                  <span class="chip ok">GitHub · доступен</span>
                 </div>
-                <div class="a-row" style="margin-top:10px"><span class="a-btn primary">Запустить проверку</span></div>
+                <div class="a-row" style="margin-top:10px">
+                  <span class="a-btn primary">Проверить всё</span>
+                  <span class="a-sub">История: процент успешных проверок в день</span>
+                </div>
+              </div>
+              <div class="a-card">
+                <h5>История доступности · 7 дней</h5>
+                <p class="a-sub" style="font-family:monospace;opacity:.8">youtube&nbsp;&nbsp; 100% 100% 100% 100% 100% 100% 100%<br>discord&nbsp;&nbsp; 100% 100%&nbsp; 96% 100% 100% 100% 100%<br>telegram 100% 100% 100% 100%&nbsp; 98% 100% 100%</p>
+              </div>
+            </section>
+
+            <!-- Инструменты -->
+            <section class="page" data-page="tools">
+              <div class="pg-head"><h4>Инструменты</h4><p>Починка сети, DNS, hosts и диагностика — в один клик</p></div>
+              <div class="a-cards two">
+                <div class="a-card">
+                  <h5>🔧 Починить сеть <span class="chip ok">ГОТОВО</span></h5>
+                  <p class="a-sub">flushdns → Winsock → сброс IP-стека → кэш Zentrix</p>
+                </div>
+                <div class="a-card">
+                  <h5>🌐 Смена DNS</h5>
+                  <p class="a-sub">Cloudflare · Google · AdGuard · Family · DHCP</p>
+                </div>
+                <div class="a-card">
+                  <h5>📋 hosts-редактор</h5>
+                  <p class="a-sub">Анти-рекламный пресет, групповое вкл/выкл записей</p>
+                </div>
+                <div class="a-card">
+                  <h5>🩺 Диагностика</h5>
+                  <p class="a-sub">ping · traceroute · whois · скан портов</p>
+                </div>
+              </div>
+            </section>
+
+            <!-- Мониторинг -->
+            <section class="page" data-page="monitor">
+              <div class="pg-head"><h4>Мониторинг</h4><p>Скорость, графики, активные TCP-соединения</p></div>
+              <div class="a-row" style="margin-bottom:10px">
+                <span class="a-card" style="flex:1"><h5>Скорость ↓</h5><p class="a-sub" style="font-size:16px;opacity:.85">0 Б/с</p></span>
+                <span class="a-card" style="flex:1"><h5>Скорость ↑</h5><p class="a-sub" style="font-size:16px;opacity:.85">0 Б/с</p></span>
+                <span class="a-card" style="flex:1"><h5>Соединения</h5><p class="a-sub" style="font-size:16px;opacity:.85">0</p></span>
+              </div>
+              <div class="a-card">
+                <h5>График трафика</h5>
+                <p class="a-sub">Запускается вручную и останавливается при уходе со страницы</p>
               </div>
             </section>
 
             <!-- Обновления -->
             <section class="page" data-page="updates">
-              <div class="pg-head"><h4>Обновления</h4><p>Проверка релизов через GitHub API</p></div>
-              <div class="a-card">
-                <h5>Компоненты</h5>
-                <div class="a-list">
-                  <div class="a-item"><b>Zentrix</b> · v1.1.6<span class="tag" style="color:var(--green)">Актуальная</span></div>
-                  <div class="a-item"><b>Zapret</b> · 1.10.4<span class="tag" style="color:var(--green)">Актуальная</span></div>
-                  <div class="a-item"><b>Xray-core</b> · v25.*<span class="tag" style="color:#f0c876">Доступно обновление</span></div>
-                  <div class="a-item"><b>sing-box</b> · v1.*<span class="tag" style="color:var(--green)">Актуальная</span></div>
-                </div>
-                <div class="a-row" style="margin-top:10px"><span class="a-btn primary">Проверить всё</span></div>
+              <div class="pg-head"><h4>Обновления</h4><p>GitHub API releases/latest · валидация архивов · атомарная замена с откатом</p></div>
+              <div class="a-cards two">
+                <div class="a-card"><h5>⚡ Zapret <span class="chip ok">АКТУАЛЬНО</span></h5><p class="a-sub">1.10.4 · Flowseal/zapret-discord-youtube</p></div>
+                <div class="a-card"><h5>🌐 Happ <span class="chip ok">УСТАНОВЛЕНО</span></h5><p class="a-sub">4.6.1 · Happ-proxy/happ-desktop</p></div>
+                <div class="a-card"><h5>🛡 Hiddify <span class="chip ok">УСТАНОВЛЕНО</span></h5><p class="a-sub">4.1.1 · hiddify/hiddify-app</p></div>
+                <div class="a-card"><h5>🔗 TG WS Proxy <span class="chip ok">АКТУАЛЬНО</span></h5><p class="a-sub">1.11.4 · Flowseal/tg-ws-proxy</p></div>
+                <div class="a-card"><h5>⬇ Zentrix <span class="chip ok">УСТАНОВЛЕНО</span></h5><p class="a-sub">1.1.6 · самообновление приложения</p></div>
               </div>
             </section>
 
@@ -280,8 +309,8 @@
             <section class="page" data-page="settings">
               <div class="pg-head"><h4>Настройки</h4><p>Оформление, звук, движки и обслуживание Zentrix</p></div>
               <div class="a-card" style="margin-bottom:10px">
-                <h5>Тема оформления <span class="chip">Светлая и тёмная палитры</span></h5>
-                <div class="a-row"><span class="a-btn on">Тёмная</span><span class="a-btn">Светлая</span></div>
+                <h5>Тема оформления</h5>
+                <div class="a-row"><span class="a-btn on">Тёмная</span><span class="a-btn">Светлая</span><span class="a-btn">Как в Windows</span></div>
                 <h5 style="margin-top:12px">Акценты</h5>
                 <div class="a-row">
                   <span class="a-btn sw on" style="background:#7c5cff"></span>
@@ -289,7 +318,6 @@
                   <span class="a-btn sw" style="background:#3ddc97"></span>
                   <span class="a-btn sw" style="background:#ffc46b"></span>
                   <span class="a-btn sw" style="background:#ff5c7a"></span>
-                  <span class="a-btn sw" style="background:#ff8a4c"></span>
                   <span class="a-btn sw" style="background:#4c9aff"></span>
                 </div>
               </div>
@@ -298,6 +326,7 @@
                   <h5>Поведение</h5>
                   <div class="a-tgl-row"><span>Сворачивать в трей</span><span class="a-toggle on"><i></i></span></div>
                   <div class="a-tgl-row"><span>Запуск при старте Windows</span><span class="a-toggle"><i></i></span></div>
+                  <div class="a-tgl-row"><span>Сценарии «если → то»</span><span class="a-toggle on"><i></i></span></div>
                 </div>
                 <div class="a-card">
                   <h5>Звук</h5>
@@ -309,9 +338,7 @@
 
           </div>
         </div>
-        <div class="demo-note">🖱️ <span><b>Интерфейс кликабельный</b> — переключайте вкладки слева, выбирайте стратегии и маршруты. IP-адреса, города и процессы скрыты для сайта.</span></div>
-      </div>
-
+        <div class="demo-note">🖱️ <span><b>Интерфейс кликабельный</b> — переключайте вкладки слева, включайте обход и мост Telegram, выбирайте стратегии. IP-адреса и города скрыты для сайта.</span></div>
       <div class="cta hero-cta">
         <a class="btn primary" href="https://github.com/w1kscc/Zentrix/releases/latest"
            data-dl-installer rel="noopener">
@@ -337,8 +364,9 @@
     <div class="wrap">
       <h2>Всё нужное — в одном окне</h2>
       <p class="sub">
-        Zentrix — оболочка, а не «ещё одна программа на замену». Он управляет
-        Zapret и два VPN-ядра из единого интерфейса с общим списком серверов.
+        Zentrix — оболочка, а не «ещё одна программа на замену». Он управляет Zapret,
+        двумя VPN-ядрами и мостом Telegram из единого интерфейса с общим списком
+        серверов, watchdog-перезапуском и авто-обновлением всех компонентов.
       </p>
 
       <div class="grid">
@@ -361,10 +389,10 @@
         </div>
 
         <div class="card">
-          <h3><span class="ico">⇄</span> Мульти-прокси · BETA</h3>
+          <h3><span class="ico">⇄</span> Мульти-прокси и подписки · BETA</h3>
           <p>
             sing-box распределяет новые TCP-подключения между максимум пятью серверами.
-            Активный VPN можно раздать устройствам той же локальной сети по HTTP или SOCKS5.
+            Ping серверов и «Выбрать лучший» по замеру, подписки с авто-обновлением.
           </p>
         </div>
 
