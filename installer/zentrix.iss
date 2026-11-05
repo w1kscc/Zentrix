@@ -9,7 +9,7 @@
   #define AppName "Zentrix"
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.0.7"
+  #define AppVersion "1.1.5"
 #endif
 #ifndef AppPublisher
   #define AppPublisher "Zentrix Project"

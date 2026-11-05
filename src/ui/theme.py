@@ -106,6 +106,8 @@ class Palette:
     def from_settings(cls, settings) -> "Palette":
         data = settings.section("appearance")
         theme = str(data.get("theme", "dark"))
+        if bool(data.get("auto_theme", False)):
+            theme = "light" if windows_prefers_light() else "dark"
         defaults = THEMES.get(theme, THEMES["dark"])
         return cls(
             theme=theme,
@@ -398,6 +400,22 @@ def qss(palette: Palette) -> str:
         border: 1px solid {line}; border-radius: 12px; min-height: 24px; max-height: 24px;
     }}
     #pageStack {{ background: transparent; }}
+    #commandPalette {{
+        background: {mix(palette.bg, palette.bg2, 0.72)};
+        border: 1px solid {rgba(accent, 0.4)};
+        border-radius: {radius}px;
+    }}
+    #commandPalette QLineEdit {{
+        background: {rgba("#000000" if dark else "#FFFFFF", 0.3 if dark else 0.6)};
+        border: 1px solid {line};
+        border-radius: {max(8, radius - 8)}px;
+        color: {text}; padding: 8px 12px; font-size: {palette.font_size + 1}pt;
+    }}
+    #commandPalette QListWidget {{
+        background: transparent; border: none; color: {text};
+    }}
+    #commandPalette QListWidget::item {{ border-radius: 6px; padding: 2px; }}
+    #commandPalette QListWidget::item:selected {{ background: {rgba(accent, 0.22)}; }}
     #sidebarFooter {{ border-top: 1px solid {line}; }}
     #logView {{
         background: {rgba("#000000" if dark else "#FFFFFF", 0.28 if dark else 0.55)};
@@ -418,3 +436,31 @@ def qss(palette: Palette) -> str:
         border-radius: {max(10, radius - 4)}px;
     }}
     """
+
+
+def windows_prefers_light() -> bool:
+    """Read AppsUseLightTheme from the registry (True = light apps theme)."""
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            value, _kind = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return bool(value)
+    except Exception:
+        return False
+
+
+def windows_theme_changed_since(previous: bool | None) -> bool | None:
+    """Return the current light-theme preference, or None if unreadable."""
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            value, _kind = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return bool(value)
+    except Exception:
+        return None

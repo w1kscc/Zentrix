@@ -9,11 +9,13 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup, QCheckBox, QComboBox, QFileDialog, QFontComboBox, QGridLayout,
-    QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QProgressBar, QPushButton,
+    QListWidget, QListWidgetItem, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+    QProgressBar, QPushButton, QSpinBox,
     QVBoxLayout, QWidget,
 )
 
 from ... import constants, paths, winapi
+from ... import scenarios as scenarios_mod
 from ...cleaner import CATEGORY_LABELS, CleanReport, Cleaner
 from ...logger import get_logger
 from ...presets import DEFAULT_NAME, presets as preset_store
@@ -60,6 +62,7 @@ SECTIONS = (
     ("appearance", "Оформление", "palette"),
     ("sounds", "Звук", "volume"),
     ("engines", "Движки", "cpu"),
+    ("automation", "Автоматизация", "bolt"),
     ("maintenance", "Обслуживание", "trash"),
     ("about", "О программе", "info"),
 )
@@ -116,6 +119,7 @@ class SettingsPage(Page):
             self._build_appearance(),
             self._build_sounds(),
             self._build_engines(),
+            self._build_automation(),
             self._build_maintenance(),
             self._build_about(),
         ]
@@ -441,6 +445,129 @@ class SettingsPage(Page):
         return page
 
     # ----------------------------------------------------------- maintenance
+    # ---------------------------------------------------------- automation
+    def _build_automation(self) -> QWidget:
+        p = self.ctx.palette
+        page, layout = self._page()
+
+        auto_theme = ToggleRow(
+            "Тема «Как в Windows»", "Следить за AppsUseLightTheme и менять тему на лету",
+            bool(self.ctx.settings.section("appearance").get("auto_theme", False)), p,
+        )
+        auto_theme.toggled.connect(lambda value: (
+            self.ctx.settings.update("appearance", {"auto_theme": bool(value)}, save=True),
+            self.ctx.apply_theme(),
+        ))
+        self._toggles.append(auto_theme)
+        layout.addWidget(auto_theme)
+
+        watchdog_row = ToggleRow(
+            "Watchdog Zapret",
+            "Перезапускать winws.exe автоматически (до 3 попыток) и уведомлять об этом",
+            bool(self.ctx.settings.get("watchdog.enabled", True)), p,
+        )
+        watchdog_row.toggled.connect(lambda value:
+                                     self.ctx.settings.set("watchdog.enabled", bool(value)))
+        self._toggles.append(watchdog_row)
+        layout.addWidget(watchdog_row)
+
+        ip_row = ToggleRow(
+            "Алерты смены IP",
+            "Проверять внешний IP и показывать тост «IP изменился: был …, стал …»",
+            bool(self.ctx.settings.get("ipwatch.enabled", True)), p,
+        )
+        def _ip_toggle(value: bool) -> None:
+            self.ctx.settings.set("ipwatch.enabled", bool(value))
+            self.ctx._stop_ipwatch() if not value else self.ctx._start_ipwatch()
+        ip_row.toggled.connect(_ip_toggle)
+        self._toggles.append(ip_row)
+        layout.addWidget(ip_row)
+
+        subs_row = ToggleRow(
+            "Авто-обновление подписок",
+            "Скачивать URL подписок по расписанию (интервал ниже)",
+            bool(self.ctx.settings.get("subscriptions.auto_update", False)), p,
+        )
+        subs_row.toggled.connect(lambda value: (
+            self.ctx.settings.set("subscriptions.auto_update", bool(value)),
+            self.ctx.reschedule_subscriptions(),
+        ))
+        self._toggles.append(subs_row)
+        layout.addWidget(subs_row)
+
+        interval_row = QHBoxLayout()
+        interval_caption = QLabel("Интервал обновления подписок, часов")
+        self.subs_interval = QSpinBox()
+        self.subs_interval.setRange(1, 168)
+        self.subs_interval.setValue(int(self.ctx.settings.get("subscriptions.interval_hours", 12) or 12))
+        self.subs_interval.valueChanged.connect(lambda value: (
+            self.ctx.settings.set("subscriptions.interval_hours", int(value)),
+            self.ctx.reschedule_subscriptions(),
+        ))
+        interval_row.addWidget(interval_caption, 1)
+        interval_row.addWidget(self.subs_interval, 0)
+        layout.addLayout(interval_row)
+
+        # Scenario rules editor ------------------------------------------------
+        rules_card = GlassCard("Сценарии «если → то»",
+                               "Автоматические реакции на события", "bolt", p)
+        self.rules_list = QListWidget()
+        self.rules_list.setMinimumHeight(120)
+        rules_card.add(self.rules_list, 1)
+        rule_row = QHBoxLayout()
+        self.rule_when = QComboBox()
+        for value, label in scenarios_mod.WHEN_OPTIONS:
+            self.rule_when.addItem(label, value)
+        arrow = QLabel("→")
+        self.rule_then = QComboBox()
+        for value, label in scenarios_mod.THEN_OPTIONS:
+            self.rule_then.addItem(label, value)
+        add_rule = QPushButton("Добавить")
+        add_rule.clicked.connect(self._rule_add)
+        remove_rule = QPushButton("Удалить")
+        remove_rule.clicked.connect(self._rule_remove)
+        rule_row.addWidget(self.rule_when, 1)
+        rule_row.addWidget(arrow, 0)
+        rule_row.addWidget(self.rule_then, 1)
+        rule_row.addWidget(add_rule, 0)
+        rule_row.addWidget(remove_rule, 0)
+        rules_card.add_layout(rule_row)
+        layout.addWidget(rules_card)
+        self._render_rules()
+        return page
+
+    def _stored_rules(self) -> list[dict]:
+        return scenarios_mod.normalize_rules(self.ctx.settings.get("scenarios.rules"))
+
+    def _save_rules(self, rules: list[dict]) -> None:
+        self.ctx.settings.set("scenarios.rules", rules)
+        self._render_rules()
+
+    def _render_rules(self) -> None:
+        self.rules_list.clear()
+        for rule in self._stored_rules():
+            item = QListWidgetItem(scenarios_mod.rule_summary(rule))
+            item.setData(Qt.UserRole, rule)
+            self.rules_list.addItem(item)
+
+    def _rule_add(self) -> None:
+        rules = self._stored_rules()
+        rules.append({
+            "id": f"rule-{len(rules) + 1}",
+            "enabled": True,
+            "when": self.rule_when.currentData(),
+            "then": self.rule_then.currentData(),
+        })
+        self._save_rules(rules)
+        self.ctx.notify("Сценарий добавлен", "ok")
+
+    def _rule_remove(self) -> None:
+        row = self.rules_list.currentRow()
+        rules = self._stored_rules()
+        if 0 <= row < len(rules):
+            del rules[row]
+            self._save_rules(rules)
+
     def _build_maintenance(self) -> QWidget:
         p = self.ctx.palette
         page, layout = self._page()

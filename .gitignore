@@ -40,3 +40,5 @@ desktop.ini
 
 # Runtime cache
 cache.db
+cache.db-journal
+*.sqlite

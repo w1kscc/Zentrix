@@ -27,6 +27,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "appearance": {
         "theme": "dark",
+        "auto_theme": False,
         "accent": "#7C5CFF",
         "accent2": "#22D3EE",
         "bg": "#080B12",
@@ -85,8 +86,6 @@ DEFAULTS: dict[str, Any] = {
     "vpn": {
         "core": "xray",
         "multiproxy": False,
-        "share": False,
-        "share_route": "vpn",
     },
     "monitor": {
         "interval": 1.0,
@@ -108,6 +107,29 @@ DEFAULTS: dict[str, Any] = {
         "keep_presets": True,
         "last_clean": 0,
         "cleaned_total": 0,
+    },
+    "ipwatch": {
+        "enabled": True,
+        "last_ip": "",
+    },
+    "watchdog": {
+        "enabled": True,
+    },
+    "gamemode": {
+        "enabled": False,
+        "games": [],
+    },
+    "scenarios": {
+        "rules": [],
+    },
+    "subscriptions": {
+        "auto_update": False,
+        "interval_hours": 12,
+        "last_update": 0,
+    },
+    "freekeys": {
+        "enabled": False,
+        "last_search": 0,
     },
 }
 
