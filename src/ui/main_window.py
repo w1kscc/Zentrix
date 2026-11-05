@@ -303,6 +303,9 @@ class MainWindow(QMainWindow):
             engine.status_changed.connect(self._on_engine_status)
 
         self._restore_geometry()
+        if self.isMaximized():
+            self.background.setContentsMargins(
+                self.MAXIMIZED_PAD, self.MAXIMIZED_PAD, self.MAXIMIZED_PAD, self.MAXIMIZED_PAD)
         self._install_shortcuts()
         self.ctx.apply_theme()
         self._refresh_footer()
@@ -505,9 +508,16 @@ class MainWindow(QMainWindow):
         self.footer_button.setVisible(not admin)
 
     # ------------------------------------------------------------------ events
+    # Windows extends a maximized frameless window past the screen edges by
+    # the resize-border width (~8px), clipping the close button. Compensate
+    # with inner margins while maximized.
+    MAXIMIZED_PAD = 8
+
     def changeEvent(self, event) -> None:
         if event.type() == QEvent.WindowStateChange:
             self.titlebar.set_maximized(self.isMaximized())
+            pad = self.MAXIMIZED_PAD if self.isMaximized() else 0
+            self.background.setContentsMargins(pad, pad, pad, pad)
             if self.isMinimized():
                 self.background.pause()
             elif self.isVisible():
