@@ -173,7 +173,18 @@ def download(key: str, progress=None, cancel=None) -> Path:
     return target
 
 
+def _validate_zip(archive: Path) -> None:
+    """Reject truncated or corrupt archives before touching anything."""
+    if not zipfile.is_zipfile(archive):
+        raise RuntimeError("Файл не является корректным zip-архивом (обрыв загрузки?)")
+    with zipfile.ZipFile(archive) as bundle:
+        bad = bundle.testzip()
+        if bad is not None:
+            raise RuntimeError(f"Архив повреждён: {bad}")
+
+
 def _extract(archive: Path, destination: Path) -> None:
+    _validate_zip(archive)
     destination.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive) as bundle:
         for member in bundle.infolist():
@@ -197,36 +208,57 @@ def install(key: str, progress=None, cancel=None) -> dict:
     if key == "zapret":
         if archive.suffix.lower() != ".zip":
             raise RuntimeError("Ожидался zip-архив со стратегиями zapret")
+        _validate_zip(archive)
+        previous_version = installed_version("zapret")
         staging = paths.TEMP_DIR / f"zapret-{stamp}"
         _extract(archive, staging)
         root = staging
         if not (root / "bin" / "winws.exe").exists():
             candidates = list(staging.rglob("winws.exe"))
             if not candidates:
+                shutil.rmtree(staging, ignore_errors=True)
                 raise RuntimeError("В архиве не найден winws.exe")
             root = candidates[0].parent.parent
         target = paths.ENGINES_DIR / "zapret"
         backup = paths.ENGINES_DIR / f"zapret.old-{stamp}"
+        # Atomic replace: rename old aside, unpack new, then verify the key
+        # binary; on any failure roll back so the engine never disappears.
         if target.exists():
             target.rename(backup)
-        shutil.copytree(root, target)
-        # Upstream updates ship their own lists; keep the user's custom lists
-        # and game-filter toggle on top of the fresh strategy files.
-        if backup.exists():
-            user_lists = backup / "lists"
-            if user_lists.exists():
-                shutil.copytree(user_lists, target / "lists", dirs_exist_ok=True)
-            game_flag = backup / "utils" / "game_filter.enabled"
-            if game_flag.exists():
-                (target / "utils").mkdir(parents=True, exist_ok=True)
-                shutil.copy2(game_flag, target / "utils" / "game_filter.enabled")
-        (target / "version.json").write_text(
-            json.dumps({"version": version, "repo": meta["repo"]}, indent=2), encoding="utf-8"
-        )
+        try:
+            shutil.copytree(root, target)
+            if not (target / "bin" / "winws.exe").exists():
+                raise RuntimeError("После распаковки winws.exe отсутствует")
+            # Upstream updates ship their own lists; keep the user's custom
+            # lists and game-filter toggle on top of the fresh strategy files.
+            if backup.exists():
+                user_lists = backup / "lists"
+                if user_lists.exists():
+                    shutil.copytree(user_lists, target / "lists", dirs_exist_ok=True)
+                game_flag = backup / "utils" / "game_filter.enabled"
+                if game_flag.exists():
+                    (target / "utils").mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(game_flag, target / "utils" / "game_filter.enabled")
+            (target / "version.json").write_text(
+                json.dumps({"version": version, "repo": meta["repo"]}, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            log.error("Обновление Zapret не удалось, откат: %s", exc)
+            if target.exists():
+                shutil.rmtree(target, ignore_errors=True)
+            if backup.exists():
+                backup.rename(target)
+            shutil.rmtree(staging, ignore_errors=True)
+            raise RuntimeError(f"Обновление Zapret отменено, старая версия восстановлена: {exc}")
+        shutil.rmtree(backup, ignore_errors=True)
         shutil.rmtree(staging, ignore_errors=True)
         _cleanup_archive(archive)
+        log.info("Zapret обновлён: %s -> %s (репозиторий %s)",
+                 previous_version or "неизвестно", version, meta["repo"])
         return {"mode": "engine", "path": target, "backup": backup,
-                "message": f"Zapret обновлён до {version}"}
+                "message": f"Zapret обновлён до {version}"
+                           + (f" (было {previous_version})" if previous_version else "")}
 
     # Happ / Hiddify: keep the vendor payload next to the integration core.
     vendor = paths.ENGINES_DIR / key / "vendor"
@@ -243,7 +275,9 @@ def install(key: str, progress=None, cancel=None) -> dict:
     )
     _cleanup_archive(archive)
     return {"mode": "installer", "path": copied,
-            "message": f"{meta['name']} {version} загружен в engines/{key}/vendor"}
+            "message": f"{meta['name']} {version} загружен в engines/{key}/vendor. "
+                       "Распространяется как отдельный установщик — автоматической "
+                       "тихой установки нет, запустите его вручную."}
 
 
 def _cleanup_archive(archive: Path) -> None:

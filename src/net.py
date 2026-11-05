@@ -54,8 +54,11 @@ def is_newer(candidate: str, current: str) -> bool:
     return version_tuple(candidate) > version_tuple(current)
 
 
-def _request(url: str, *, timeout: float = 15.0) -> urllib.request.Request:
+def _request(url: str, *, timeout: float = 15.0,
+             extra_headers: dict[str, str] | None = None) -> urllib.request.Request:
     headers = {"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"}
+    if extra_headers:
+        headers.update(extra_headers)
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if token and "api.github.com" in url:
         headers["Authorization"] = f"Bearer {token}"
@@ -112,11 +115,19 @@ def download(url: str, destination: Path, progress: ProgressCallback | None = No
     temporary = destination.with_suffix(destination.suffix + ".part")
     last_error: Exception | None = None
     for attempt in range(1, max(1, attempts) + 1):
+        resume_from = temporary.stat().st_size if temporary.exists() else 0
         try:
-            with urllib.request.urlopen(_request(url, timeout=timeout), timeout=timeout) as response:
-                total = int(response.headers.get("Content-Length", 0) or 0)
-                done = 0
-                with open(temporary, "wb") as handle:
+            headers = {}
+            if resume_from:
+                headers["Range"] = f"bytes={resume_from}-"
+            request = _request(url, timeout=timeout, extra_headers=headers)
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                total = int(response.headers.get("Content-Length", 0) or 0) + resume_from
+                done = resume_from
+                mode = "ab" if resume_from and response.status == 206 else "wb"
+                if resume_from and response.status != 206:
+                    done = 0  # server ignored Range; start over
+                with open(temporary, mode) as handle:
                     while True:
                         if cancel and cancel():
                             raise InterruptedError("download cancelled")
@@ -132,12 +143,12 @@ def download(url: str, destination: Path, progress: ProgressCallback | None = No
         except urllib.error.HTTPError:
             raise
         except InterruptedError:
-            _remove_quietly(temporary)
+            # Keep the partial file: the next attempt resumes from it.
             raise
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             last_error = exc
-            _remove_quietly(temporary)
             if attempt >= attempts:
+                _remove_quietly(temporary)
                 break
             time.sleep(min(6.0, 1.5 * attempt))
     assert last_error is not None
