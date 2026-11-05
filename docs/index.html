@@ -56,7 +56,7 @@
       </div>
 
 <div class="mock app-demo" id="appDemo">
-        <div class="win"><i></i><i></i><i></i><span>ZENTRIX · v1.0.5 Beta</span>
+        <div class="win"><i></i><i></i><i></i><span>ZENTRIX · v1.1.0</span>
           <span class="pill"><i class="dot"></i>Обход выключен</span>
         </div>
         <div class="app">
@@ -65,12 +65,12 @@
             <button data-page="home" class="on" data-glyph="⌂"><span>Главная</span></button>
             <button data-page="zapret" data-glyph="⚡"><span>Zapret</span></button>
             <button data-page="vpn" data-glyph="🌐"><span>VPN</span></button>
-            <button data-page="share" data-glyph="📶"><span>Шеринг</span><em>BETA</em></button>
-            <button data-page="monitor" data-glyph="↯"><span>Мониторинг</span></button>
             <button data-page="check" data-glyph="◎"><span>Проверки</span></button>
+            <button data-page="tools" data-glyph="🛠"><span>Инструменты</span></button>
+            <button data-page="monitor" data-glyph="↯"><span>Мониторинг</span></button>
             <button data-page="updates" data-glyph="↓"><span>Обновления</span></button>
             <button data-page="settings" data-glyph="◐"><span>Настройки</span></button>
-            <div class="app-foot"><b>АДМИНИСТРАТОР</b><small>1.0.5 Beta · MIT</small></div>
+            <div class="app-foot"><b>АДМИНИСТРАТОР</b><small>1.1.0 · MIT</small></div>
           </aside>
 
           <div class="app-body">
@@ -93,17 +93,17 @@
               <div class="a-engines">
                 <div class="a-card">
                   <h5>⚡ Zapret <span class="chip">ВЫКЛЮЧЕН</span></h5>
-                  <p class="a-sub">DPI-обход через winws</p>
+                  <p class="a-sub">DPI-обход через winws · watchdog</p>
                   <span class="a-manage">› Управление</span>
                 </div>
                 <div class="a-card">
                   <h5>🌐 VPN <span class="chip">ВЫКЛЮЧЕН</span></h5>
-                  <p class="a-sub">Общие профили · Xray / sing-box</p>
+                  <p class="a-sub">Общие профили · Xray / sing-box · подписки</p>
                   <span class="a-manage">› Управление</span>
                 </div>
                 <div class="a-card">
-                  <h5>📶 Шеринг <span class="chip">ВЫКЛЮЧЕНО</span></h5>
-                  <p class="a-sub">Подключение устройств в LAN · BETA</p>
+                  <h5>🛠 Инструменты <span class="chip ok">5 Разделов</span></h5>
+                  <p class="a-sub">DNS · hosts · ремонт · диагностика · Game Mode</p>
                   <span class="a-manage">› Управление</span>
                 </div>
               </div>
@@ -182,6 +182,7 @@
               <div class="a-card" style="margin-top:10px">
                 <h5>▽ Игровой фильтр <span class="chip warn">2 игры</span></h5>
                 <p>Режим исключений: Zapret не применяется к выбранным играм — Zapret работает на весь ПК, но останавливается на время матча. Чистый пинг как по LAN.</p>
+                <div class="a-tgl-row" style="margin-top:8px"><span>Watchdog: перезапускать winws при падении</span><span class="a-toggle on"><i></i></span></div>
               </div>
             </section>
 
@@ -202,34 +203,75 @@
                   <span class="a-btn on">Xray · Happ</span>
                   <span class="a-btn">sing-box · Hiddify</span>
                   <span class="a-btn">Мульти-прокси · ВЫКЛ</span>
-                  <span class="chip warn" style="align-self:center">BETA</span>
                 </div>
+              </div>
+              <div class="a-card" style="margin-top:10px">
+                <h5>Серверы</h5>
+                <div class="a-list">
+                  <div class="a-item"><b>🇳🇱 Amsterdam · vless</b><span class="tag" style="color:var(--green)">42 мс</span></div>
+                  <div class="a-item"><b>🇩🇪 Frankfurt · vless</b><span class="tag" style="color:var(--green)">58 мс</span></div>
+                  <div class="a-item"><b>🇸🇪 Stockholm · trojan</b><span class="tag" style="color:#f0c876">— мс</span></div>
+                </div>
+                <p class="a-sub" style="margin-top:8px">Ping серверов — TCP-замер до каждого сервера профиля; кнопка «Выбрать самый быстрый» берёт лидера.</p>
+                <div class="a-row" style="margin-top:8px">
+                  <span class="a-btn">Ping серверов</span>
+                  <span class="a-btn">Выбрать самый быстрый</span>
+                </div>
+              </div>
+              <div class="a-card" style="margin-top:10px">
+                <h5>Подписка</h5>
+                <input class="a-input" placeholder="https://… подписка" value="https://sub.example.com/base64" readonly>
+                <div class="a-tgl-row" style="margin-top:8px"><span>Авто-обновление каждые 12 ч</span><span class="a-toggle on"><i></i></span></div>
               </div>
             </section>
 
-            <!-- Шеринг -->
-            <section class="page" data-page="share">
-              <div class="pg-head"><h4>Прокси-шеринг</h4><p>Подключите устройства домашней сети к интернету через этот ПК</p></div>
-              <div class="a-card">
-                <h5>Локальный шеринг <span class="chip ok">РАБОТАЕТ</span></h5>
-                <div class="a-row" style="align-items:center;margin-bottom:8px">
-                  <span class="a-toggle on"><i></i></span>
-                  <span style="font-size:12.5px">Раздача включена — устройства могут подключаться</span>
+            <!-- Инструменты -->
+            <section class="page" data-page="tools">
+              <div class="pg-head"><h4>Инструменты</h4><p>Уход за сетью: DNS, hosts, диагностика, Game Mode</p></div>
+              <div class="a-cols">
+                <div class="a-side grow">
+                  <div class="a-card">
+                    <h5>🔧 Ремонт сети</h5>
+                    <div class="a-row">
+                      <span class="a-btn" style="flex:1;justify-content:center">Очистить DNS-кэш</span>
+                    </div>
+                    <div class="a-row" style="margin-top:8px">
+                      <span class="a-btn" style="flex:1;justify-content:center">Сбросить Winsock</span>
+                      <span class="a-btn primary" style="flex:1;justify-content:center">Полный ремонт</span>
+                    </div>
+                  </div>
+                  <div class="a-card" style="margin-top:10px">
+                    <h5>🌐 Смена DNS</h5>
+                    <div class="a-row">
+                      <span class="a-btn on">Cloudflare</span>
+                      <span class="a-btn">Google</span>
+                      <span class="a-btn">AdGuard</span>
+                      <span class="a-btn">DHCP</span>
+                    </div>
+                    <p class="a-sub" style="margin-top:8px">Текущее: 1.1.1.1 · 1.0.0.1</p>
+                  </div>
                 </div>
-                <p style="margin-bottom:8px">Через что идёт трафик устройств:</p>
-                <div class="a-row" data-route-group>
-                  <span class="a-btn">VPN</span>
-                  <span class="a-btn on">Zapret</span>
+                <div class="a-side">
+                  <div class="a-card"><h5>📄 Hosts-файл</h5>
+                    <div class="a-tgl-row"><span>Реклама и трекеры · 11 доменов</span><span class="a-toggle on"><i></i></span></div>
+                    <div class="a-tgl-row"><span>Своя группа · 4 домена</span><span class="a-toggle"><i></i></span></div>
+                    <div class="a-row" style="margin-top:8px">
+                      <span class="a-btn" style="flex:1;justify-content:center">Заблокировать рекламу</span>
+                    </div>
+                  </div>
+                  <div class="a-card" style="margin-top:10px"><h5>◎ Диагностика</h5>
+                    <input class="a-input" value="youtube.com" readonly>
+                    <div class="a-row" style="margin-top:8px">
+                      <span class="a-btn">Ping</span><span class="a-btn">Traceroute</span>
+                      <span class="a-btn">Whois</span><span class="a-btn">Порт-скан</span>
+                    </div>
+                  </div>
+                  <div class="a-card" style="margin-top:10px"><h5>⚡ Game Mode <span class="chip ok">ОЖИДАНИЕ</span></h5>
+                    <div class="a-tgl-row"><span>Приоритет процессу игры</span><span class="a-toggle on"><i></i></span></div>
+                    <div class="a-tgl-row"><span>План питания: максимум</span><span class="a-toggle on"><i></i></span></div>
+                    <p class="a-sub" style="margin-top:8px">Cyberpunk2077.exe · CS2.exe</p>
+                  </div>
                 </div>
-              </div>
-              <div class="a-cards two" style="margin-top:10px">
-                <div class="a-card" style="text-align:center">
-                  <h5 style="justify-content:center">QR-код подключения</h5>
-                  <div class="qr"></div>
-                  <p>socks5://<span class="mask">ххх.ххх.ххх.ххх</span>:10808</p>
-                </div>
-                <div class="a-card"><h5>Как подключить</h5>
-                  <p>Wi-Fi устройства → прокси вручную →<br>IP компьютера: <span class="mask">ххх.ххх.ххх.ххх</span><br>Порт: <b style="color:var(--text)">10808</b></p></div>
               </div>
             </section>
 
@@ -269,6 +311,29 @@
                 </div>
                 <div class="a-row" style="margin-top:10px"><span class="a-btn primary">Запустить проверку</span></div>
               </div>
+              <div class="a-card" style="margin-top:10px">
+                <h5>История проверок <span class="chip">7 дней · YouTube</span></h5>
+                <svg viewBox="0 0 300 64" preserveAspectRatio="none" style="width:100%;height:64px">
+                  <g fill="rgba(61,220,151,.85)">
+                    <rect x="2"   y="10" width="9" height="54"/><rect x="13"  y="4"  width="9" height="60"/>
+                    <rect x="24"  y="12" width="9" height="52"/><rect x="35"  y="6"  width="9" height="58"/>
+                    <rect x="57"  y="9"  width="9" height="55"/><rect x="68"  y="5"  width="9" height="59"/>
+                    <rect x="90"  y="11" width="9" height="53"/><rect x="101" y="8"  width="9" height="56"/>
+                    <rect x="112" y="4"  width="9" height="60"/><rect x="123" y="13" width="9" height="51"/>
+                    <rect x="145" y="10" width="9" height="54"/><rect x="156" y="7"  width="9" height="57"/>
+                    <rect x="178" y="12" width="9" height="52"/><rect x="189" y="5"  width="9" height="59"/>
+                    <rect x="211" y="9"  width="9" height="55"/><rect x="222" y="4"  width="9" height="60"/>
+                    <rect x="244" y="10" width="9" height="54"/><rect x="255" y="8"  width="9" height="56"/>
+                    <rect x="266" y="12" width="9" height="52"/><rect x="277" y="6"  width="9" height="58"/>
+                  </g>
+                  <g fill="rgba(255,92,122,.85)">
+                    <rect x="46" y="34" width="9" height="30"/><rect x="79" y="40" width="9" height="24"/>
+                    <rect x="134" y="44" width="9" height="20"/><rect x="167" y="38" width="9" height="26"/>
+                    <rect x="200" y="46" width="9" height="18"/><rect x="233" y="36" width="9" height="28"/>
+                  </g>
+                </svg>
+                <p class="a-sub" style="margin-top:8px">Доступность YouTube за 7 дней: <b style="color:var(--text)">94%</b>. Каждая проверка сохраняется локально в cache.db.</p>
+              </div>
             </section>
 
             <!-- Обновления -->
@@ -290,8 +355,8 @@
             <section class="page" data-page="settings">
               <div class="pg-head"><h4>Настройки</h4><p>Оформление, звук, движки и обслуживание Zentrix</p></div>
               <div class="a-card" style="margin-bottom:10px">
-                <h5>Тема оформления <span class="chip">Светлая и тёмная палитры</span></h5>
-                <div class="a-row"><span class="a-btn on">Тёмная</span><span class="a-btn">Светлая</span></div>
+                <h5>Тема оформления <span class="chip">Тёмная · светлая · как в Windows</span></h5>
+                <div class="a-row"><span class="a-btn on">Тёмная</span><span class="a-btn">Светлая</span><span class="a-btn">Как в Windows</span></div>
                 <h5 style="margin-top:12px">Акценты</h5>
                 <div class="a-row">
                   <span class="a-btn sw on" style="background:#7c5cff"></span>
@@ -314,6 +379,13 @@
                   <div class="a-tgl-row"><span>Звуки интерфейса</span><span class="a-toggle on"><i></i></span></div>
                   <p class="a-sub">Синтезируются на лету, без файлов</p>
                 </div>
+              </div>
+              <div class="a-card" style="margin-top:10px">
+                <h5>Автоматизация</h5>
+                <div class="a-tgl-row"><span>Отслеживание внешнего IP · обновление exit-ноды</span><span class="a-toggle on"><i></i></span></div>
+                <div class="a-tgl-row"><span>Watchdog Zapret · авто-перезапуск winws</span><span class="a-toggle on"><i></i></span></div>
+                <div class="a-tgl-row"><span>Обновлять подписки каждые 12 ч</span><span class="a-toggle on"><i></i></span></div>
+                <p class="a-sub" style="margin-top:8px">Сценарии «если → то»: «Если YouTube заблокирован → сменить стратегию», «Если VPN пропал → включить Zapret».</p>
               </div>
             </section>
 
@@ -371,27 +443,36 @@
         </div>
 
         <div class="card">
-          <h3><span class="ico">⇄</span> Мульти-прокси и шеринг · BETA</h3>
+          <h3><span class="ico">⇄</span> Подписки и мульти-прокси</h3>
           <p>
-            sing-box распределяет новые TCP-подключения между максимум пятью серверами.
-            Активный VPN можно раздать устройствам той же локальной сети по HTTP или SOCKS5.
+            Вставьте ссылку на подписку — список серверов загрузится сам и обновится
+            в фоне. sing-box может распределять новые TCP-подключения между пятью
+            серверами, а «Ping серверов» найдёт самый быстрый.
           </p>
         </div>
 
         <div class="card">
-          <h3><span class="ico">◎</span> IP и геолокация</h3>
+          <h3><span class="ico">🛠</span> Инструменты</h3>
           <p>
-            На вкладке VPN отображаются прямой IP и адрес через туннель, страна и город.
-            Для приблизительного местоположения используется ipapi.co.
+            Кнопка «починить сеть», смена DNS в один клик (Cloudflare / Google /
+            AdGuard), редактор hosts с анти-рекламным списком, диагностика
+            ping · traceroute · whois · порт-скан и Game Mode.
           </p>
         </div>
 
         <div class="card">
-          <h3><span class="ico">↯</span> Проверка блокировок</h3>
+          <h3><span class="ico">◎</span> Проверки с историей</h3>
           <p>
-            DNS против DoH, TCP-доступность и классификация TLS SNI для YouTube,
-            Discord, Telegram, Steam и других сервисов. Понятный отчёт: что
-            работает, что заблокировано и чем.
+            DNS против DoH, TCP-доступность и классификация TLS SNI. Каждая проверка
+            сохраняется локально — видна статистика доступности за 7 дней.
+          </p>
+        </div>
+
+        <div class="card">
+          <h3><span class="ico">⌁</span> Автоматика</h3>
+          <p>
+            Сценарии «если → то», watchdog Zapret (авто-перезапуск при падении),
+            алерт при смене внешнего IP, авто-обновление подписок.
           </p>
         </div>
 

@@ -90,6 +90,7 @@ class ToolsPage(Page):
             self._build_games(),
         ]
         self._attach_section(0)
+        self.add(self.section_host)
         self.finish()
 
     def _attach_section(self, index: int) -> None:
@@ -128,7 +129,7 @@ class ToolsPage(Page):
         layout.addWidget(adapter_card)
 
         actions_card = self._card("Ремонт сети",
-                                  "Очистка кэша DNS, сброс Winsock и IP-стека", "wrench", p)
+                                  "Очистка кэша DNS, сброс Winsock и IP-стека", "wrench")
         buttons_row = QHBoxLayout()
         buttons_row.setSpacing(8)
         flush = PrimaryButton("Очистить DNS-кэш", "trash", p)
@@ -592,7 +593,7 @@ class ToolsPage(Page):
         layout.addWidget(card)
         layout.addStretch(1)
         self.ctx.game_mode.state_changed.connect(self._game_mode_state)
-        self.game_mode_state()
+        self._game_mode_state()
         return body
 
     # -------------------------------------------------------------- actions
@@ -669,7 +670,7 @@ class ToolsPage(Page):
         self._refresh_dns_current()
         self._reload_hosts()
         self._restore_selected_games()
-        self.game_mode_state()
+        self._game_mode_state()
 
     def _restore_selected_games(self) -> None:
         """Show the checkbox list without rediscovering every time."""

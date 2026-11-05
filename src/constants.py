@@ -8,8 +8,8 @@ from __future__ import annotations
 
 APP_NAME = "Zentrix"
 APP_DISPLAY_NAME = "Zentrix"
-APP_VERSION = "1.0.7"
-APP_VERSION_LABEL = "1.0.7"
+APP_VERSION = "1.1.0"
+APP_VERSION_LABEL = "1.1.0"
 APP_CHANNEL = "Stable"
 APP_PUBLISHER = "Zentrix Project"
 APP_DESCRIPTION = "GUI для обхода блокировок: Zapret и VPN в одном окне"
