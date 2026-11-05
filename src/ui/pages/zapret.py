@@ -480,6 +480,39 @@ class ZapretPage(Page):
         self.tgws_hint.setObjectName("tiny")
         self.tgws_hint.setWordWrap(True)
         card.add(self.tgws_hint)
+
+        # Подробные настройки моста (переехали сюда из раздела Настройки).
+        secret_row = QHBoxLayout()
+        secret_caption = QLabel("Secret")
+        self.tgws_secret = QLineEdit(str(self.ctx.settings.get("tgws.secret", "")) or "")
+        self.tgws_secret.setPlaceholderText("MTProto secret (dd…)")
+        self.tgws_secret.editingFinished.connect(
+            lambda: self.ctx.settings.set("tgws.secret", self.tgws_secret.text().strip()))
+        secret_row.addWidget(secret_caption)
+        secret_row.addWidget(self.tgws_secret, 1)
+        regen = QPushButton("Новый secret")
+        regen.setProperty("variant", "chip")
+        regen.clicked.connect(self._tgws_regen_secret)
+        secret_row.addWidget(regen)
+        card.add_layout(secret_row)
+
+        flags_row = QHBoxLayout()
+        self.tgws_cf = QPushButton("CfProxy fallback")
+        self.tgws_cf.setProperty("variant", "chip")
+        self.tgws_cf.setCheckable(True)
+        self.tgws_cf.setChecked(bool(self.ctx.settings.get("tgws.cfproxy", True)))
+        self.tgws_cf.clicked.connect(
+            lambda checked: self.ctx.settings.set("tgws.cfproxy", bool(checked)))
+        self.tgws_h2 = QPushButton("HTTP/2 медиа")
+        self.tgws_h2.setProperty("variant", "chip")
+        self.tgws_h2.setCheckable(True)
+        self.tgws_h2.setChecked(bool(self.ctx.settings.get("tgws.h2", True)))
+        self.tgws_h2.clicked.connect(
+            lambda checked: self.ctx.settings.set("tgws.h2", bool(checked)))
+        flags_row.addWidget(self.tgws_cf)
+        flags_row.addWidget(self.tgws_h2)
+        flags_row.addStretch(1)
+        card.add_layout(flags_row)
         self.add(card)
 
         self.ctx.tgws.status_changed.connect(self._tgws_status_changed)
@@ -523,6 +556,14 @@ class ZapretPage(Page):
              "error": "err"}.get(status, "muted"))
         self.tgws_toggle.setChecked(status in {"running", "starting"})
         self.tgws_hint.setText(self._tgws_status_text())
+
+    def _tgws_regen_secret(self) -> None:
+        import secrets as _secrets
+
+        new_secret = _secrets.token_hex(16)
+        self.ctx.settings.set("tgws.secret", new_secret)
+        self.tgws_secret.setText(new_secret)
+        self.ctx.notify("Secret обновлён — переподключите Telegram", "info")
 
     def _tgws_open_telegram(self) -> None:
         import webbrowser

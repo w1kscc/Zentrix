@@ -63,7 +63,6 @@ SECTIONS = (
     ("sounds", "Звук", "volume"),
     ("engines", "Движки", "cpu"),
     ("automation", "Автоматизация", "bolt"),
-    ("tgws", "TG WS Proxy", "link"),
     ("maintenance", "Обслуживание", "trash"),
     ("about", "О программе", "info"),
 )
@@ -121,7 +120,6 @@ class SettingsPage(Page):
             self._build_sounds(),
             self._build_engines(),
             self._build_automation(),
-            self._build_tgws(),
             self._build_maintenance(),
             self._build_about(),
         ]
@@ -569,113 +567,6 @@ class SettingsPage(Page):
         if 0 <= row < len(rules):
             del rules[row]
             self._save_rules(rules)
-
-    # ---------------------------------------------------------- TG WS Proxy
-    def _build_tgws(self) -> QWidget:
-        p = self.ctx.palette
-        page, layout = self._page()
-
-        state = self.ctx.tgws.status if hasattr(self.ctx, "tgws") else "stopped"
-        status_row = ToggleRow(
-            "TG WS Proxy",
-            ("Сейчас: работает · порт " + str(self.ctx.settings.get("tgws.port", 1443)))
-            if state == "running" else "Сейчас: выключен. Мост Telegram Desktop через WebSocket",
-            state == "running", p,
-        )
-        status_row.toggled.connect(self._tgws_set_enabled)
-        self._toggles.append(status_row)
-        layout.addWidget(status_row)
-
-        port_row = QHBoxLayout()
-        port_caption = QLabel("Порт локального MTProto-прокси")
-        self.tgws_port = QSpinBox()
-        self.tgws_port.setRange(1024, 65535)
-        self.tgws_port.setValue(int(self.ctx.settings.get("tgws.port", 1443) or 1443))
-        self.tgws_port.valueChanged.connect(
-            lambda value: self._tgws_apply(lambda: self.ctx.settings.set("tgws.port", int(value))))
-        port_row.addWidget(port_caption, 1)
-        port_row.addWidget(self.tgws_port, 0)
-        layout.addLayout(port_row)
-
-        secret_row = QHBoxLayout()
-        self.tgws_secret = QLineEdit(str(self.ctx.settings.get("tgws.secret", "")) or "")
-        self.tgws_secret.setPlaceholderText("MTProto secret (dd…)")
-        self.tgws_secret.editingFinished.connect(
-            lambda: self._tgws_apply(lambda: self.ctx.settings.set(
-                "tgws.secret", self.tgws_secret.text().strip())))
-        secret_row.addWidget(self.tgws_secret, 1)
-        regen = QPushButton("Новый secret")
-        regen.setProperty("variant", "chip")
-        regen.clicked.connect(self._tgws_regen_secret)
-        secret_row.addWidget(regen)
-        layout.addLayout(secret_row)
-
-        cf_row = ToggleRow(
-            "CfProxy fallback",
-            "Если WebSocket недоступен — уходить в Cloudflare-прокси",
-            bool(self.ctx.settings.get("tgws.cfproxy", True)), p,
-        )
-        cf_row.toggled.connect(lambda value: self._tgws_apply(
-            lambda: self.ctx.settings.set("tgws.cfproxy", bool(value))))
-        self._toggles.append(cf_row)
-        layout.addWidget(cf_row)
-
-        h2_row = ToggleRow(
-            "HTTP/2 для медиа",
-            "Грузить фото/видео через h2-транспорт Cloudflare",
-            bool(self.ctx.settings.get("tgws.h2", True)), p,
-        )
-        h2_row.toggled.connect(lambda value: self._tgws_apply(
-            lambda: self.ctx.settings.set("tgws.h2", bool(value))))
-        self._toggles.append(h2_row)
-        layout.addWidget(h2_row)
-
-        autostart_row = ToggleRow(
-            "Автозапуск в Zentrix",
-            "Поднимать мост при старте приложения (если включён)",
-            bool(self.ctx.settings.get("tgws.autostart", False)), p,
-        )
-        autostart_row.toggled.connect(lambda value: self.ctx.settings.set(
-            "tgws.autostart", bool(value)))
-        self._toggles.append(autostart_row)
-        layout.addWidget(autostart_row)
-
-        hint = QLabel("Настройки применяются при следующем запуске моста: выключите "
-                      "и включите TG WS Proxy (кнопка на Главной или вкладке Zapret).")
-        hint.setObjectName("tiny")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
-        return page
-
-    def _tgws_set_enabled(self, value: bool) -> None:
-        from ..workers import run_task
-
-        engine = self.ctx.tgws
-        if value:
-            if not engine.is_available():
-                self.ctx.notify("Ядро TG WS Proxy не скачано — вкладка Zapret → "
-                                "«Скачать / обновить ядро»", "warn")
-                return
-            run_task(self, engine.start,
-                     on_done=lambda _r: self.ctx.notify("TG WS Proxy запущен", "ok"),
-                     on_error=lambda msg: self.ctx.notify(f"TG WS Proxy: {msg}", "err", "error"))
-        else:
-            run_task(self, engine.stop,
-                     on_done=lambda _r: self.ctx.notify("TG WS Proxy остановлен", "info"),
-                     on_error=lambda msg: self.ctx.notify(msg, "err", "error"))
-
-    def _tgws_apply(self, setter) -> None:
-        setter()
-        engine = self.ctx.tgws
-        if engine.status == "running":
-            self.ctx.notify("Настройка применится после перезапуска TG WS Proxy", "info")
-
-    def _tgws_regen_secret(self) -> None:
-        import secrets as _secrets
-        new_secret = _secrets.token_hex(16)
-        self.ctx.settings.set("tgws.secret", new_secret)
-        self.tgws_secret.setText(new_secret)
-        self._tgws_apply(lambda: None)
 
     def _build_maintenance(self) -> QWidget:
         p = self.ctx.palette

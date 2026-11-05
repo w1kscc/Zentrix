@@ -176,6 +176,14 @@ class HomePage(Page):
         check_button.setCursor(Qt.PointingHandCursor)
         check_button.clicked.connect(self._quick_check)
         buttons.addWidget(check_button, 0)
+        self.tgws_home_button = QPushButton(
+            "Выключить TG Proxy" if self._tgws_on() else "Включить TG Proxy")
+        self.tgws_home_button.setIcon(self._icon("link"))
+        self.tgws_home_button.setFixedHeight(38)
+        self.tgws_home_button.setCursor(Qt.PointingHandCursor)
+        self.tgws_home_button.setToolTip("TG WS Proxy — мост Telegram, настройки на вкладке Zapret")
+        self.tgws_home_button.clicked.connect(self._toggle_tgws_home)
+        buttons.addWidget(self.tgws_home_button, 0)
         buttons.addStretch(1)
         left.addLayout(buttons)
         self.admin_notice = QPushButton("Нужны права администратора  →")
@@ -200,19 +208,8 @@ class HomePage(Page):
         self.vpn_pill = StatusPill("VPN", p)
         pills.addWidget(self.zapret_pill, 1)
         pills.addWidget(self.vpn_pill, 1)
-        tgws_column = QVBoxLayout()
-        tgws_column.setSpacing(4)
         self.tgws_pill = StatusPill("TG Proxy", p)
-        tgws_column.addWidget(self.tgws_pill)
-        self.tgws_home_button = QPushButton("Выключить" if self._tgws_on() else "Включить")
-        self.tgws_home_button.setProperty("variant", "chip")
-        self.tgws_home_button.setCursor(Qt.PointingHandCursor)
-        self.tgws_home_button.setFixedHeight(28)
-        self.tgws_home_button.setToolTip("TG WS Proxy — мост Telegram, настраивается на вкладке Zapret")
-        self.tgws_home_button.clicked.connect(self._toggle_tgws_home)
-        tgws_column.addWidget(self.tgws_home_button)
-        tgws_column.addStretch(1)
-        pills.addLayout(tgws_column, 1)
+        pills.addWidget(self.tgws_pill, 1)
         status_card.add_layout(pills)
         top.addWidget(status_card, 3)
 
@@ -386,7 +383,7 @@ class HomePage(Page):
             (f"Работает · порт {self.ctx.settings.get('tgws.port', 1443)}") if tg_on
             else ("Ошибка" if tgws.status == "error" else "Выключен"),
         )
-        self.tgws_home_button.setText("Выключить" if tg_on else "Включить")
+        self.tgws_home_button.setText("Выключить TG Proxy" if tg_on else "Включить TG Proxy")
 
     # -------------------------------------------------------------- strategy
     def _load_strategies(self) -> None:
@@ -569,7 +566,8 @@ class HomePage(Page):
     def on_theme(self) -> None:
         p = self.ctx.palette
         self.orb.set_palette(p)
-        self.tgws_home_button.setText("Выключить" if self._tgws_on() else "Включить")
+        self.tgws_home_button.setText(
+            "Выключить TG Proxy" if self._tgws_on() else "Включить TG Proxy")
         for pill in (self.zapret_pill, self.vpn_pill, self.tgws_pill):
             pill.set_palette(p)
         self._refresh_hero()
