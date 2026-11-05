@@ -21,11 +21,37 @@ from .logger import get_logger
 
 log = get_logger("free-keys")
 
-# Curated public sources (owner/repo). Extend deliberately, never crawl.
-SOURCES: list[str] = [
-    "Au1rxx/free-vpn-subscriptions",
+# Curated public source: igareck/vpn-configs-for-russia. The repo groups
+# hand-tested, auto-refreshed configs into categories (black/white lists,
+# mobile variants). Only these exact files are fetched — no crawling.
+SOURCE_REPO = "igareck/vpn-configs-for-russia"
+
+# (key, label, [files in the repo], hint). Keys are stored in settings.
+CATEGORIES: list[dict] = [
+    {"key": "black_vless", "label": "VLESS — чёрные списки (РКН)",
+     "files": ["BLACK_VLESS_RUS.txt"], "schemes": ["vless"]},
+    {"key": "black_vless_mobile", "label": "VLESS мобильные операторы (чёрные списки)",
+     "files": ["BLACK_VLESS_RUS_mobile.txt"], "schemes": ["vless"]},
+    {"key": "black_ss_all", "label": "Все протоколы — чёрные списки (SS, VLESS, VMess…)",
+     "files": ["BLACK_SS+All_RUS.txt"], "schemes": ["vless", "vmess", "trojan", "ss"]},
+    {"key": "black_ss_weak_dpi", "label": "Слабый DPI — чёрные списки",
+     "files": ["BLACK_SS_WEAK_DPI_RUS.txt"], "schemes": ["vless", "vmess", "trojan", "ss"]},
+    {"key": "white_reality_mobile", "label": "VLESS Reality — белые списки (моб. операторы)",
+     "files": ["Vless-Reality-White-Lists-Rus-Mobile.txt"], "schemes": ["vless"]},
+    {"key": "white_cidr_checked", "label": "Белые CIDR — проверенные",
+     "files": ["WHITE-CIDR-RU-checked.txt"], "schemes": ["vless"]},
+    {"key": "white_cidr_all", "label": "Белые CIDR — все",
+     "files": ["WHITE-CIDR-RU-all.txt"], "schemes": ["vless"]},
+    {"key": "white_sni", "label": "Белые SNI",
+     "files": ["WHITE-SNI-RU-all.txt"], "schemes": ["vless"]},
 ]
-KNOWN_FILES = ("sub.txt", "sub.md", "all.txt", "README.md", "config.yaml", "list.txt")
+CATEGORY_KEYS = [item["key"] for item in CATEGORIES]
+
+# Protocols the user can filter by. Zentrix engines support these schemes.
+SUPPORTED_SCHEMES = ("vless://", "vmess://", "trojan://", "ss://", "hysteria2://", "tuic://")
+IMPORTABLE_SCHEMES = ("vless://", "vmess://", "trojan://", "ss://")
+
+REFRESH_INTERVAL = 3600  # the upstream repo refreshes roughly every 1-2 hours
 
 SUPPORTED_SCHEMES = ("vless://", "vmess://")
 FETCH_TIMEOUT = 12.0
@@ -66,8 +92,9 @@ def decode_payload(data: bytes) -> str:
     return text
 
 
-def extract_links(text: str) -> list[str]:
-    """Collect unique vless:// and vmess:// links (also inside YAML scalars)."""
+def extract_links(text: str, schemes=None) -> list[str]:
+    """Collect unique config links, optionally filtered to ``schemes``."""
+    allowed = tuple(schemes) if schemes else SUPPORTED_SCHEMES
     links: list[str] = []
     seen: set[str] = set()
     for line in text.splitlines():
@@ -75,7 +102,7 @@ def extract_links(text: str) -> list[str]:
         if "://" not in candidate:
             continue
         scheme = candidate.split("://", 1)[0].lower() + "://"
-        if scheme not in SUPPORTED_SCHEMES:
+        if scheme not in allowed:
             continue
         candidate = candidate[candidate.index(scheme):].strip()
         if candidate and candidate not in seen:
@@ -108,8 +135,8 @@ def parse_node(link: str, index: int, source: str) -> FreeNode:
                     host=host, port=port, source=source)
 
 
-def fetch_source_links(repo: str) -> list[str]:
-    """Fetch known files from one public repo via the GitHub API."""
+def fetch_source_links(repo: str, files: list[str] | None = None) -> list[str]:
+    """Fetch the named raw files from one public repo (GitHub API listing)."""
     links: list[str] = []
     try:
         listing = net.http_json(f"https://api.github.com/repos/{repo}/contents/",
@@ -117,10 +144,10 @@ def fetch_source_links(repo: str) -> list[str]:
     except Exception as exc:
         log.warning("Список файлов %s: %s", repo, exc)
         return links
-    names = [item.get("name", "") for item in listing if isinstance(item, dict)]
-    targets = [name for name in names
-               if name.lower() in KNOWN_FILES or name.lower().endswith((".txt", ".yaml", ".yml"))]
-    for name in targets[:8]:
+    names = {item.get("name", "") for item in listing if isinstance(item, dict)}
+    targets = [name for name in (files or [])
+               if any(name.casefold() == candidate.casefold() for candidate in names)]
+    for name in targets:
         try:
             raw = net.http_json(
                 f"https://api.github.com/repos/{repo}/contents/{name}",
@@ -137,20 +164,47 @@ def fetch_source_links(repo: str) -> list[str]:
     return links
 
 
-def search(progress=None, cancelled=None) -> list[FreeNode]:
-    """Download every curated source and return unique nodes. Blocking."""
+def category_by_key(key: str) -> dict | None:
+    return next((item for item in CATEGORIES if item["key"] == key), None)
+
+
+def normalize_categories(raw) -> list[str]:
+    """Stored category keys -> valid list; empty/None = the VLESS default."""
+    if not raw:
+        return ["black_vless"]
+    keys = [str(item) for item in raw if str(item) in CATEGORY_KEYS]
+    return keys or ["black_vless"]
+
+
+def search(progress=None, cancelled=None, categories=None, schemes=None) -> list[FreeNode]:
+    """Fetch selected categories from the curated repo. Blocking.
+
+    ``categories`` — list of CATEGORIES keys; ``schemes`` — list like
+    ["vless", "vmess"]. A category's native schemes are honoured too: a file
+    only yields protocols it actually contains.
+    """
+    chosen = [category_by_key(key) for key in normalize_categories(categories)]
+    chosen = [item for item in chosen if item]
     collected: list[FreeNode] = []
     seen: set[str] = set()
-    for repo_index, repo in enumerate(SOURCES, start=1):
+    scheme_filter = {s.lower().rstrip(":/") for s in schemes} if schemes else None
+    for index, category in enumerate(chosen, start=1):
         if cancelled and cancelled():
             break
         if progress:
-            progress(repo_index, len(SOURCES), repo)
-        for index, link in enumerate(fetch_source_links(repo)):
+            progress(index, len(chosen), category["label"])
+        wanted = [s for s in category["schemes"]
+                  if scheme_filter is None or s in scheme_filter]
+        if not wanted:
+            continue
+        for link in fetch_source_links(SOURCE_REPO, category["files"]):
+            scheme = link.split("://", 1)[0].lower()
+            if scheme not in wanted:
+                continue
             if link in seen:
                 continue
             seen.add(link)
-            collected.append(parse_node(link, len(collected), repo))
+            collected.append(parse_node(link, len(collected), category["label"]))
     return collected
 
 

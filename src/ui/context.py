@@ -65,6 +65,12 @@ class AppContext(QObject):
         self._theme_watch_timer.setInterval(3000)
         self._theme_watch_timer.timeout.connect(self._theme_watch_tick)
         self._last_windows_light: bool | None = None
+        # BETA free keys: upstream repo refreshes every 1-2 hours; we poll hourly.
+        self.free_keys_cache: list = []
+        self._freekeys_timer = QTimer(self)
+        self._freekeys_timer.setInterval(60 * 60 * 1000)
+        self._freekeys_timer.timeout.connect(self._freekeys_tick)
+        self._freekeys_busy = False
 
         self.zapret = ZapretEngine(self)
         self.happ = HappEngine(self)
@@ -90,6 +96,46 @@ class AppContext(QObject):
         self._subscription_timer.start()
         self._reschedule_subscriptions()
         self._theme_watch_timer.start()
+        if bool(self.settings.get("freekeys.enabled", False)):
+            self._freekeys_timer.start()
+
+    # ------------------------------------------------------------ free keys
+    def start_freekeys_refresh(self) -> None:
+        """Hourly background refresh of the BETA key list while enabled."""
+        self._freekeys_timer.start()
+
+    def stop_freekeys_refresh(self) -> None:
+        self._freekeys_timer.stop()
+
+    def _freekeys_tick(self) -> None:
+        """Refresh cached free nodes from the curated repo (background)."""
+        from .workers import run_task
+
+        if self._freekeys_busy or not bool(self.settings.get("freekeys.enabled", False)):
+            return
+        self._freekeys_busy = True
+        categories = self.settings.get("freekeys.categories", []) or ["black_vless"]
+        schemes = self.settings.get("freekeys.schemes", ["vless"]) or ["vless"]
+
+        def _search():
+            from .. import free_keys
+            nodes = free_keys.search(categories=categories, schemes=schemes)
+            free_keys.probe_nodes(nodes)
+            return nodes
+
+        def _done(nodes):
+            self._freekeys_busy = False
+            old_count = len(self.free_keys_cache)
+            self.free_keys_cache = nodes
+            if nodes:
+                self.notify(f"Бесплатные ключи обновлены: найдено {len(nodes)} "
+                            f"(было {old_count}). Добавление — вручную на вкладке VPN.",
+                            "info")
+            else:
+                self.notify("Обновление бесплатных ключей: ничего не найдено", "warn")
+
+        run_task(self, _search, on_done=_done,
+                 on_error=lambda _message: setattr(self, "_freekeys_busy", False))
 
     def _start_ipwatch(self) -> None:
         from .. import ipwatch
@@ -381,7 +427,8 @@ class AppContext(QObject):
         log.info("Завершение работы Zentrix")
         self._stop_ipwatch()
         for timer in (self._watchdog_timer, self._scenario_timer,
-                      self._subscription_timer, self._theme_watch_timer):
+                      self._subscription_timer, self._theme_watch_timer,
+                      self._freekeys_timer):
             timer.stop()
         try:
             self.stop_monitor()

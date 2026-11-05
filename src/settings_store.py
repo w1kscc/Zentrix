@@ -130,6 +130,8 @@ DEFAULTS: dict[str, Any] = {
     "freekeys": {
         "enabled": False,
         "last_search": 0,
+        "categories": ["black_vless"],
+        "schemes": ["vless"],
     },
 }
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidget, QListWidgetItem as QtListWidgetItem
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
     QVBoxLayout, QWidget,
 )
@@ -287,6 +288,38 @@ class VpnPage(QWidget):
         self.beta_label.setObjectName("tiny")
         self.beta_label.setWordWrap(True)
         card.add(self.beta_label)
+
+        # Category picker: igareck/vpn-configs-for-russia groups configs into
+        # black/white list files; let the user choose which to fetch.
+        cat_caption = QLabel("Что искать (источник: igareck/vpn-configs-for-russia, "
+                             "обновляется автором каждые 1–2 часа):")
+        cat_caption.setObjectName("tiny")
+        card.add(cat_caption)
+        self.category_list = QListWidget()
+        self.category_list.setMinimumHeight(96)
+        self.category_list.setMaximumHeight(140)
+        for item_def in free_keys.CATEGORIES:
+            widget_item = QtListWidgetItem(item_def["label"])
+            widget_item.setData(Qt.UserRole, item_def["key"])
+            widget_item.setFlags(widget_item.flags() | Qt.ItemIsUserCheckable)
+            widget_item.setCheckState(Qt.Unchecked)
+            self.category_list.addItem(widget_item)
+        card.add(self.category_list, 1)
+
+        scheme_row = QHBoxLayout()
+        scheme_caption = QLabel("Протоколы:")
+        scheme_caption.setObjectName("tiny")
+        scheme_row.addWidget(scheme_caption)
+        self.scheme_checks: dict[str, QCheckBox] = {}
+        for scheme, label in (("vless", "VLESS"), ("vmess", "VMess"),
+                              ("trojan", "Trojan"), ("ss", "Shadowsocks")):
+            box = QCheckBox(label)
+            box.setChecked(scheme == "vless")
+            self.scheme_checks[scheme] = box
+            scheme_row.addWidget(box)
+        scheme_row.addStretch(1)
+        card.add_layout(scheme_row)
+
         beta_row = QHBoxLayout()
         self.beta_search = QPushButton("Найти ключи")
         self.beta_search.clicked.connect(self._search_keys)
@@ -305,11 +338,15 @@ class VpnPage(QWidget):
 
     def _toggle_beta(self, checked: bool) -> None:
         self.ctx.settings.set("freekeys.enabled", bool(checked))
+        self.category_list.setVisible(bool(checked))
         self.beta_results.setVisible(bool(checked))
         if checked:
-            self.ctx.notify("Поиск ключей включён. Помните: это BETA и на ваш риск.", "warn")
+            self.ctx.notify("Поиск ключей включён: авто-обновление раз в час, "
+                            "добавление только вручную. BETA — на ваш риск.", "warn")
+            self.ctx.start_freekeys_refresh()
         else:
             self.beta_results.clear()
+            self.ctx.stop_freekeys_refresh()
 
     def _search_keys(self) -> None:
         if not bool(self.ctx.settings.get("freekeys.enabled", False)):
@@ -321,19 +358,37 @@ class VpnPage(QWidget):
         def _progress(index, total, name):
             self.beta_label.setText(f"Источник {index}/{total}: {name}")
 
+        categories = self._selected_categories()
+        schemes = [key for key, box in self.scheme_checks.items() if box.isChecked()]
+        if not categories:
+            self.beta_label.setText("Отметьте хотя бы одну категорию")
+            return
+        if not schemes:
+            self.beta_label.setText("Отметьте хотя бы один протокол")
+            return
+        self.ctx.settings.set("freekeys.categories", categories)
+        self.ctx.settings.set("freekeys.schemes", schemes)
+
         def _search():
-            nodes = free_keys.search(progress=_progress)
+            nodes = free_keys.search(progress=_progress, categories=categories,
+                                     schemes=schemes)
             free_keys.probe_nodes(nodes)
             return nodes
 
         run_task(self, _search, on_done=self._keys_found,
                  on_error=self._keys_failed)
 
+    def _selected_categories(self) -> list[str]:
+        return [self.category_list.item(row).data(Qt.UserRole)
+                for row in range(self.category_list.count())
+                if self.category_list.item(row).checkState() == Qt.Checked]
+
     def _keys_found(self, nodes) -> None:
         import time
 
         self.beta_search.setEnabled(True)
         self._free_nodes = nodes
+        self.ctx.free_keys_cache = nodes
         self.beta_results.clear()
         for node in nodes:
             ping = f" · {node.ping_ms:.0f} мс" if node.ping_ms is not None else ""
@@ -445,6 +500,28 @@ class VpnPage(QWidget):
     def on_show(self) -> None:
         self.active_page.on_show()
         self._update_ip_state()
+        self._restore_beta_settings()
+        self._render_free_nodes(getattr(self.ctx, "free_keys_cache", []))
+
+    def _restore_beta_settings(self) -> None:
+        saved = set(self.ctx.settings.get("freekeys.categories", []) or [])
+        for row in range(self.category_list.count()):
+            item = self.category_list.item(row)
+            item.setCheckState(Qt.Checked if not saved or item.data(Qt.UserRole) in saved
+                               else Qt.Unchecked)
+        saved_schemes = set(self.ctx.settings.get("freekeys.schemes", ["vless"]) or ["vless"])
+        for key, box in self.scheme_checks.items():
+            box.setChecked(key in saved_schemes)
+
+    def _render_free_nodes(self, nodes) -> None:
+        self.beta_results.clear()
+        for node in nodes:
+            ping = f" · {node.ping_ms:.0f} мс" if node.ping_ms is not None else ""
+            alive = "" if node.usable is None else (" · доступен" if node.usable else " · недоступен")
+            item = QtListWidgetItem(f"{node.name} [{node.scheme}]{ping}{alive}")
+            item.setData(Qt.UserRole, node)
+            self.beta_results.addItem(item)
+        self.beta_add.setEnabled(bool(nodes))
 
     def on_hide(self) -> None:
         self.active_page.on_hide()
