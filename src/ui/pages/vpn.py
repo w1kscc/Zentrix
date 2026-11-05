@@ -161,14 +161,17 @@ class VpnPage(QWidget):
         connect_layout.setSpacing(14)
         connect_layout.addWidget(self.ip_card)
         connect_layout.addWidget(self.engine_card)
-        self.stack = QStackedWidget()
         self.xray_page = HappPage(context)
         self.singbox_page = HiddifyPage(context)
-        # The outer VpnPage provides the page margins now.
-        self.xray_page.column.setContentsMargins(0, 0, 0, 0)
-        self.singbox_page.column.setContentsMargins(0, 0, 0, 0)
-        self.stack.addWidget(self.xray_page)
-        self.stack.addWidget(self.singbox_page)
+        # Single-scroll unification: pull the plain content containers out of
+        # the proxy pages' own scroll areas so only ONE scrollbar exists —
+        # the outer one wrapping the whole VPN section.
+        self.stack = QStackedWidget()
+        for page_object in (self.xray_page, self.singbox_page):
+            page_object.column.setContentsMargins(0, 0, 0, 0)
+            content = page_object.widget()
+            content.setParent(None)
+            self.stack.addWidget(content)
         connect_layout.addWidget(self.stack, 1)
         self.sections.addWidget(connect_view)
 
@@ -190,7 +193,14 @@ class VpnPage(QWidget):
         keys_layout.addStretch(1)
         self.sections.addWidget(keys_view)
 
-        layout.addWidget(self.sections, 1)
+        from PySide6.QtWidgets import QScrollArea
+
+        body_scroll = QScrollArea()
+        body_scroll.setWidgetResizable(True)
+        body_scroll.setFrameShape(QScrollArea.NoFrame)
+        body_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body_scroll.setWidget(self.sections)
+        layout.addWidget(body_scroll, 1)
         self.section_buttons["connect"].setChecked(True)
         for engine in (context.happ, context.hiddify):
             engine.status_changed.connect(self._engine_status_changed)
@@ -199,7 +209,8 @@ class VpnPage(QWidget):
 
     @property
     def active_page(self):
-        return self.stack.currentWidget()
+        return (self.singbox_page if self.core_selector.currentData() == "singbox"
+                else self.xray_page)
 
     @property
     def active_engine(self):
@@ -219,7 +230,7 @@ class VpnPage(QWidget):
         self.ctx.settings.set("vpn.core", core)
         if previous is not page:
             previous.on_hide()
-            self.stack.setCurrentWidget(page)
+            self.stack.setCurrentIndex(1 if core == "singbox" else 0)
             if self.ctx.current_page == self.key:
                 page.on_show()
         self._update_ip_state()
