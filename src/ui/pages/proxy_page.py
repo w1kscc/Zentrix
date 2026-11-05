@@ -223,7 +223,18 @@ class ProxyPage(Page):
         latency_button.clicked.connect(self._measure_latency)
         params.add(latency_button)
         params.addStretch(1)
-        body.addWidget(params, 2)
+        # Right column: params + an optional side widget (VpnPage embeds the
+        # BETA free-keys card here), stacked over the servers row.
+        right_column = QWidget()
+        right_layout = QVBoxLayout(right_column)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(14)
+        right_layout.addWidget(params)
+        self.side_slot = QVBoxLayout()
+        self.side_slot.setContentsMargins(0, 0, 0, 0)
+        right_layout.addLayout(self.side_slot)
+        right_layout.addStretch(1)
+        body.addWidget(right_column, 2)
         self.add_layout(body)
 
         log_card = GlassCard("Журнал ядра", "stdout/stderr процесса", "activity", p)
@@ -237,10 +248,20 @@ class ProxyPage(Page):
         tools.addWidget(clear_button)
         log_card.add_layout(tools)
         self.log = LogView(p)
-        self.log.setMinimumHeight(180)
+        self.log.setMinimumHeight(340)
         log_card.add(self.log)
         self.add(log_card)
         self.finish()
+
+    def set_side_widget(self, widget) -> None:
+        """Place a widget under the params card in the right column."""
+        while self.side_slot.count():
+            item = self.side_slot.takeAt(0)
+            child = item.widget()
+            if child is not None:
+                child.setParent(None)
+        if widget is not None:
+            self.side_slot.addWidget(widget)
 
     def _connect(self) -> None:
         self.engine.status_changed.connect(self._on_status)

@@ -138,8 +138,7 @@ class VpnPage(QWidget):
         self.section_group.setExclusive(True)
         self.section_buttons: dict[str, QPushButton] = {}
         for key, label in (("connect", "Подключение"),
-                           ("servers", "Серверы и подписки"),
-                           ("keys", "Ключи · BETA")):
+                           ("servers", "Серверы и подписки")):
             button = QPushButton(label)
             button.setProperty("variant", "chip")
             button.setCheckable(True)
@@ -184,15 +183,6 @@ class VpnPage(QWidget):
         servers_layout.addStretch(1)
         self.sections.addWidget(servers_view)
 
-        # --- section: Ключи · BETA
-        keys_view = QWidget()
-        keys_layout = QVBoxLayout(keys_view)
-        keys_layout.setContentsMargins(0, 0, 0, 0)
-        keys_layout.setSpacing(14)
-        self._build_beta_card(keys_layout, context)
-        keys_layout.addStretch(1)
-        self.sections.addWidget(keys_view)
-
         from PySide6.QtWidgets import QScrollArea
 
         body_scroll = QScrollArea()
@@ -202,6 +192,10 @@ class VpnPage(QWidget):
         body_scroll.setWidget(self.sections)
         layout.addWidget(body_scroll, 1)
         self.section_buttons["connect"].setChecked(True)
+
+        # BETA free-keys card lives in the proxy page's right column, under
+        # the params card; it follows the active engine.
+        self._build_beta_card_into(context)
         for engine in (context.happ, context.hiddify):
             engine.status_changed.connect(self._engine_status_changed)
         self._core_changed(self.core_selector.currentIndex())
@@ -231,6 +225,8 @@ class VpnPage(QWidget):
         if previous is not page:
             previous.on_hide()
             self.stack.setCurrentIndex(1 if core == "singbox" else 0)
+            if getattr(self, "beta_card", None) is not None:
+                page.set_side_widget(self.beta_card)
             if self.ctx.current_page == self.key:
                 page.on_show()
         self._update_ip_state()
@@ -328,6 +324,15 @@ class VpnPage(QWidget):
         layout.addWidget(card)
 
     # ------------------------------------------------------------------- BETA
+    def _build_beta_card_into(self, context) -> None:
+        holder = QVBoxLayout()
+        holder.setContentsMargins(0, 0, 0, 0)
+        self._build_beta_card(holder, context)
+        holder_widget = QWidget()
+        holder_widget.setLayout(holder)
+        self.beta_card = holder_widget
+        self.active_page.set_side_widget(holder_widget)
+
     def _build_beta_card(self, layout, context) -> None:
         """BETA: free public keys. Off by default, manual add only."""
         p = context.palette
@@ -395,7 +400,7 @@ class VpnPage(QWidget):
         beta_row.addStretch(1)
         card.add_layout(beta_row)
         self.beta_results = QListWidget()
-        self.beta_results.setMinimumHeight(220)
+        self.beta_results.setMinimumHeight(160)
         self.beta_results.setVisible(bool(context.settings.get("freekeys.enabled", False)))
         card.add(self.beta_results)
         layout.addWidget(card)
@@ -567,9 +572,6 @@ class VpnPage(QWidget):
         leaving = self.sections.currentWidget()
         self.sections.setCurrentIndex(
             list(self.section_buttons).index(key))
-        if key == "keys":
-            self._restore_beta_settings()
-            self._render_free_nodes(getattr(self.ctx, "free_keys_cache", []))
         if key == "connect":
             if leaving is not self.sections.widget(0):
                 self.active_page.on_show()
@@ -578,9 +580,8 @@ class VpnPage(QWidget):
     def on_show(self) -> None:
         self._restore_beta_settings()
         self._render_free_nodes(getattr(self.ctx, "free_keys_cache", []))
-        if self.sections.currentIndex() == 0:
-            self.active_page.on_show()
-            self._update_ip_state()
+        self.active_page.on_show()
+        self._update_ip_state()
 
     def _restore_beta_settings(self) -> None:
         saved = set(self.ctx.settings.get("freekeys.categories", []) or [])
