@@ -132,8 +132,26 @@ class VpnPage(QWidget):
         engine_card.add(self.multi_hint)
         layout.addWidget(engine_card)
 
-        self._build_servers_card(layout, context)
-        self._build_beta_card(layout, context)
+        # The two extra cards get their own scroll area: the stacked proxy
+        # pages below own the page height, and without this the layout
+        # squeezes the cards into an unreadable mush on smaller windows.
+        from PySide6.QtWidgets import QScrollArea, QSizePolicy
+
+        extra_container = QWidget()
+        extra_layout = QVBoxLayout(extra_container)
+        extra_layout.setContentsMargins(0, 0, 0, 0)
+        extra_layout.setSpacing(14)
+        self._build_servers_card(extra_layout, context)
+        self._build_beta_card(extra_layout, context)
+        extra_scroll = QScrollArea()
+        extra_scroll.setWidgetResizable(True)
+        extra_scroll.setFrameShape(QScrollArea.NoFrame)
+        extra_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        extra_scroll.setWidget(extra_container)
+        extra_scroll.setMinimumHeight(220)
+        extra_scroll.setMaximumHeight(340)
+        extra_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        layout.addWidget(extra_scroll)
 
         self.stack = QStackedWidget()
         self.xray_page = HappPage(context)
