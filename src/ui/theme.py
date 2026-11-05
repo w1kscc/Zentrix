@@ -106,6 +106,8 @@ class Palette:
     def from_settings(cls, settings) -> "Palette":
         data = settings.section("appearance")
         theme = str(data.get("theme", "dark"))
+        if bool(data.get("auto_theme", False)):
+            theme = "light" if windows_prefers_light() else "dark"
         defaults = THEMES.get(theme, THEMES["dark"])
         return cls(
             theme=theme,
@@ -418,3 +420,31 @@ def qss(palette: Palette) -> str:
         border-radius: {max(10, radius - 4)}px;
     }}
     """
+
+
+def windows_prefers_light() -> bool:
+    """Read AppsUseLightTheme from the registry (True = light apps theme)."""
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            value, _kind = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return bool(value)
+    except Exception:
+        return False
+
+
+def windows_theme_changed_since(previous: bool | None) -> bool | None:
+    """Return the current light-theme preference, or None if unreadable."""
+    try:
+        import winreg
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            value, _kind = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return bool(value)
+    except Exception:
+        return None
